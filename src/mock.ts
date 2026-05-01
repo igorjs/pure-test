@@ -4,7 +4,7 @@
  * Drop-in replacement: change `import { vi } from 'vitest'` to
  * `import { vi } from '@igorjs/pure-test'` and everything works.
  *
- * Also exports individual functions: `fn`, `spyOn`, `mock`, `mockDeep`, `restoreAll`.
+ * Also exports individual functions: `fn`, `spyOn`, `mock`, `mockDeep`, `restoreAllMocks`.
  */
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -189,7 +189,7 @@ export const spyFn = <T extends (...args: readonly unknown[]) => unknown = (...a
 
   mockFn.mockRestore = () => {
     mockFn.mockReset();
-    // For spyOn, the actual restore is handled by restoreAll()
+    // For spyOn, the actual restore is handled by restoreAllMocks()
     const record = spyRegistry.find((r) => r.mock === mockFn);
     if (record) {
       record.target[record.method] = record.original;
@@ -286,10 +286,10 @@ export const mockDeep = <T extends Record<string, unknown>>(obj: T, seen?: Set<u
   return obj;
 };
 
-// ── restoreAll() ────────────────────────────────────────────────────────────
+// ── restoreAllMocksMocks() ────────────────────────────────────────────────────────────
 
 /** Restore all spied methods to their originals. */
-export const restoreAll = (): void => {
+export const restoreAllMocks = (): void => {
   while (spyRegistry.length > 0) {
     const record = spyRegistry.pop()!;
     record.target[record.method] = record.original;

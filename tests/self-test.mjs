@@ -7,7 +7,7 @@
  *   bun tests/self-test.mjs
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, spyFn, spyOn, mock, mockDeep, restoreAll, clearAllMocks, resetAllMocks } from "../dist/index.js";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, spyFn, spyOn, mock, mockDeep, restoreAllMocks, clearAllMocks, resetAllMocks } from "../dist/index.js";
 
 // ── expect.toBe ─────────────────────────────────────────────────────────────
 
@@ -426,7 +426,7 @@ describe("spyFn()", () => {
 // ── spyOn() ─────────────────────────────────────────────────────────────────
 
 describe("spyOn()", () => {
-  afterEach(() => restoreAll());
+  afterEach(() => restoreAllMocks());
 
   it("spies on a method and calls through", () => {
     const obj = { greet: (name) => `hello ${name}` };
@@ -450,11 +450,11 @@ describe("spyOn()", () => {
     expect(obj.getValue()).toBe("real");
   });
 
-  it("restoreAll restores all spies", () => {
+  it("restoreAllMocks restores all spies", () => {
     const obj = { a: () => 1, b: () => 2 };
     spyOn(obj, "a").mockReturnValue(10);
     spyOn(obj, "b").mockReturnValue(20);
-    restoreAll();
+    restoreAllMocks();
     expect(obj.a()).toBe(1);
     expect(obj.b()).toBe(2);
   });
@@ -468,7 +468,7 @@ describe("spyOn()", () => {
 // ── clearAllMocks / resetAllMocks ────────────────────────────────────────────
 
 describe("clearAllMocks / resetAllMocks", () => {
-  afterEach(() => restoreAll());
+  afterEach(() => restoreAllMocks());
 
   it("clearAllMocks clears history on all spies", () => {
     const obj = { a: () => 1, b: () => 2 };
@@ -493,7 +493,7 @@ describe("clearAllMocks / resetAllMocks", () => {
 // ── mock() ──────────────────────────────────────────────────────────────────
 
 describe("mock()", () => {
-  afterEach(() => restoreAll());
+  afterEach(() => restoreAllMocks());
 
   it("replaces all methods with spies", () => {
     const obj = { a: () => 1, b: () => 2, notAFn: "hello" };
@@ -509,7 +509,7 @@ describe("mock()", () => {
 // ── mockDeep() ──────────────────────────────────────────────────────────────
 
 describe("mockDeep()", () => {
-  afterEach(() => restoreAll());
+  afterEach(() => restoreAllMocks());
 
   it("mocks nested methods recursively", () => {
     const db = {
@@ -537,12 +537,12 @@ describe("mockDeep()", () => {
     expect(() => mockDeep(obj)).not.toThrow();
   });
 
-  it("restores everything on restoreAll", () => {
+  it("restores everything on restoreAllMocks", () => {
     const service = { db: { query: () => "real" } };
     mockDeep(service);
     service.db.query.mockReturnValue("mocked");
     expect(service.db.query()).toBe("mocked");
-    restoreAll();
+    restoreAllMocks();
     expect(service.db.query()).toBe("real");
   });
 });

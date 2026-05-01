@@ -173,7 +173,7 @@ double(5) // 10
 Spy on an existing method. Calls through to the original by default.
 
 ```ts
-import { spyOn, restoreAll } from '@igorjs/pure-test'
+import { spyOn, restoreAllMocks } from '@igorjs/pure-test'
 
 const obj = { greet: (name) => `hello ${name}` }
 const spy = spyOn(obj, 'greet')
@@ -272,7 +272,7 @@ spy.mockRestore()  // clear history + restore original (spyOn only)
 Shallow mock: replace all function properties with spies.
 
 ```ts
-import { mock, restoreAll } from '@igorjs/pure-test'
+import { mock, restoreAllMocks } from '@igorjs/pure-test'
 
 const api = {
   getUser: (id) => fetch(`/users/${id}`),
@@ -284,7 +284,7 @@ mock(api)
 api.getUser(1)
 api.getUser.mock.calls     // [[1]]
 api.baseUrl                // 'https://api.example.com' (non-functions untouched)
-restoreAll()               // restore originals
+restoreAllMocks()               // restore originals
 ```
 
 #### `mockDeep(object)`
@@ -292,7 +292,7 @@ restoreAll()               // restore originals
 Recursively mock all methods on nested objects.
 
 ```ts
-import { mockDeep, restoreAll } from '@igorjs/pure-test'
+import { mockDeep, restoreAllMocks } from '@igorjs/pure-test'
 
 const db = {
   users: {
@@ -311,7 +311,7 @@ db.users.find(1)             // { id: 1, name: 'Mock' }
 db.users.find.mock.calls     // [[1]]
 db.posts.list.mock.calls     // []
 
-restoreAll()                 // restore all originals at every level
+restoreAllMocks()                 // restore all originals at every level
 ```
 
 Handles circular references safely.
@@ -319,9 +319,9 @@ Handles circular references safely.
 ### Bulk Operations
 
 ```ts
-import { restoreAll, clearAllMocks, resetAllMocks } from '@igorjs/pure-test'
+import { restoreAllMocks, clearAllMocks, resetAllMocks } from '@igorjs/pure-test'
 
-restoreAll()       // restore all spied methods to originals
+restoreAllMocks()       // restore all spied methods to originals
 clearAllMocks()    // clear call history on all spies, keep implementations
 resetAllMocks()    // clear history + reset implementations on all spies
 ```
@@ -412,7 +412,7 @@ If your tests have race conditions in sequential mode, that's a bug in the tests
   // Rename: *.test.ts → *.test.mjs (or use runtime-native TS)
 
 - import { describe, it, expect, jest } from '@jest/globals'
-+ import { describe, it, expect, spyFn, spyOn, restoreAll } from '@igorjs/pure-test'
++ import { describe, it, expect, spyFn, spyOn, restoreAllMocks } from '@igorjs/pure-test'
 
   // jest.fn() → spyFn()
 - const callback = jest.fn()
@@ -422,9 +422,9 @@ If your tests have race conditions in sequential mode, that's a bug in the tests
 - jest.spyOn(obj, 'method')
 + spyOn(obj, 'method')
 
-  // jest.restoreAllMocks() → restoreAll()
+  // jest.restoreAllMocks() → restoreAllMocks()
 - jest.restoreAllMocks()
-+ restoreAll()
++ restoreAllMocks()
 
   // jest.clearAllMocks() → clearAllMocks()
 - jest.clearAllMocks()
@@ -475,7 +475,7 @@ spy.mock.lastCall
 
 ```diff
 - import { describe, it, expect, vi } from 'vitest'
-+ import { describe, it, expect, spyFn, spyOn, restoreAll, clearAllMocks, resetAllMocks } from '@igorjs/pure-test'
++ import { describe, it, expect, spyFn, spyOn, restoreAllMocks, clearAllMocks, resetAllMocks } from '@igorjs/pure-test'
 
   // vi.fn() → spyFn()
 - const spy = vi.fn()
@@ -485,9 +485,9 @@ spy.mock.lastCall
 - vi.spyOn(obj, 'method')
 + spyOn(obj, 'method')
 
-  // vi.restoreAllMocks() → restoreAll()
+  // vi.restoreAllMocks() → restoreAllMocks()
 - vi.restoreAllMocks()
-+ restoreAll()
++ restoreAllMocks()
 
   // vi.clearAllMocks() → clearAllMocks()
 - vi.clearAllMocks()
@@ -500,7 +500,7 @@ spy.mock.lastCall
   // afterEach cleanup
   afterEach(() => {
 -   vi.restoreAllMocks()
-+   restoreAll()
++   restoreAllMocks()
   })
 ```
 
