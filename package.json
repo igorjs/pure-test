@@ -1,0 +1,51 @@
+{
+  "name": "@igorjs/pure-test",
+  "version": "0.1.0",
+  "description": "Minimal cross-runtime test runner. Works on Node, Deno, Bun, Workers, and Browser. Zero dependencies.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "pure-test": "./bin/pure-test.mjs"
+  },
+  "files": [
+    "dist",
+    "bin"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc",
+    "lint": "biome check",
+    "lint:fix": "biome check --write",
+    "check": "tsc --noEmit",
+    "test": "node tests/self-test.mjs",
+    "test:deno": "deno run --allow-all tests/self-test.mjs",
+    "test:all": "node tests/self-test.mjs && deno run --allow-all tests/self-test.mjs"
+  },
+  "keywords": [
+    "test",
+    "testing",
+    "test-runner",
+    "cross-runtime",
+    "deno",
+    "bun",
+    "node",
+    "tap",
+    "zero-dependencies"
+  ],
+  "author": "igorjs <oss@mail.igorjs.io>",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/igorjs/pure-test.git"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "typescript": "^5.7.0"
+  }
+}
