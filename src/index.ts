@@ -35,6 +35,6 @@ export {
 } from "./runner.js";
 export { tap, spec, json, minimal, getReporter } from "./reporters.js";
 export type { Reporter } from "./reporters.js";
-export { fn, spyOn, mock, mockDeep, restoreAll, vi } from "./mock.js";
+export { fn, spyOn, mock, mockDeep, restoreAll, clearAllMocks, resetAllMocks } from "./mock.js";
 export type { MockFn, MockResult } from "./mock.js";
 export type { Test, Suite, TestResult, RunSummary } from "./types.js";

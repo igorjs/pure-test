@@ -296,35 +296,18 @@ export const restoreAll = (): void => {
   }
 };
 
-// ── vi namespace (Vitest compatibility) ─────────────────────────────────────
+// ── Bulk operations ─────────────────────────────────────────────────────────
 
-/**
- * Vitest-compatible `vi` namespace.
- *
- * @example
- * ```ts
- * // Change this:
- * import { vi } from 'vitest'
- * // To this:
- * import { vi } from '@igorjs/pure-test'
- *
- * const spy = vi.fn()
- * vi.spyOn(obj, 'method')
- * vi.restoreAllMocks()
- * ```
- */
-export const vi = {
-  fn,
-  spyOn,
-  restoreAllMocks: restoreAll,
-  clearAllMocks: (): void => {
-    for (const record of spyRegistry) {
-      (record.mock as MockFn).mockClear();
-    }
-  },
-  resetAllMocks: (): void => {
-    for (const record of spyRegistry) {
-      (record.mock as MockFn).mockReset();
-    }
-  },
+/** Clear call history on all active spies, keep implementations. */
+export const clearAllMocks = (): void => {
+  for (const record of spyRegistry) {
+    (record.mock as MockFn).mockClear();
+  }
+};
+
+/** Reset all active spies: clear history and implementations. */
+export const resetAllMocks = (): void => {
+  for (const record of spyRegistry) {
+    (record.mock as MockFn).mockReset();
+  }
 };

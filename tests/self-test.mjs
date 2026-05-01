@@ -7,7 +7,7 @@
  *   bun tests/self-test.mjs
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, fn, spyOn, mock, mockDeep, restoreAll, vi } from "../dist/index.js";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, fn, spyOn, mock, mockDeep, restoreAll, clearAllMocks, resetAllMocks } from "../dist/index.js";
 
 // ── expect.toBe ─────────────────────────────────────────────────────────────
 
@@ -465,38 +465,28 @@ describe("spyOn()", () => {
   });
 });
 
-// ── vi namespace ────────────────────────────────────────────────────────────
+// ── clearAllMocks / resetAllMocks ────────────────────────────────────────────
 
-describe("vi namespace", () => {
-  afterEach(() => vi.restoreAllMocks());
+describe("clearAllMocks / resetAllMocks", () => {
+  afterEach(() => restoreAll());
 
-  it("vi.fn() creates a mock", () => {
-    const spy = vi.fn();
-    spy(1);
-    expect(spy.mock.calls).toHaveLength(1);
+  it("clearAllMocks clears history on all spies", () => {
+    const obj = { a: () => 1, b: () => 2 };
+    const spyA = spyOn(obj, "a");
+    const spyB = spyOn(obj, "b");
+    obj.a();
+    obj.b();
+    clearAllMocks();
+    expect(spyA.mock.calls).toHaveLength(0);
+    expect(spyB.mock.calls).toHaveLength(0);
   });
 
-  it("vi.spyOn() spies on methods", () => {
-    const obj = { add: (a, b) => a + b };
-    const spy = vi.spyOn(obj, "add");
-    expect(obj.add(1, 2)).toBe(3);
-    expect(spy.mock.calls[0]).toEqual([1, 2]);
-  });
-
-  it("vi.clearAllMocks() clears history", () => {
+  it("resetAllMocks resets history and implementations", () => {
     const obj = { getValue: () => 1 };
-    const spy = vi.spyOn(obj, "getValue");
-    obj.getValue();
-    vi.clearAllMocks();
-    expect(spy.mock.calls).toHaveLength(0);
-  });
-
-  it("vi.resetAllMocks() resets everything", () => {
-    const obj = { getValue: () => 1 };
-    vi.spyOn(obj, "getValue").mockReturnValue(99);
+    spyOn(obj, "getValue").mockReturnValue(99);
     expect(obj.getValue()).toBe(99);
-    vi.resetAllMocks();
-    expect(obj.getValue()).toBeUndefined(); // impl cleared
+    resetAllMocks();
+    expect(obj.getValue()).toBeUndefined();
   });
 });
 
