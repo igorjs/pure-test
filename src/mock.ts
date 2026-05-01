@@ -1,48 +1,82 @@
 /**
- * Mocking utilities. No runtime-specific imports.
+ * Mocking utilities with Vitest-compatible API.
  *
- * Provides:
- * - `fn()` — standalone spy/stub
- * - `spyOn(obj, method)` — spy on an existing method
- * - `mock(obj)` — shallow mock: replace all methods with spies
- * - `mockDeep(obj)` — deep mock: recursively replace all methods on nested objects
- * - `restore()` — restore all spied methods to originals
+ * Drop-in replacement: change `import { vi } from 'vitest'` to
+ * `import { vi } from '@igorjs/pure-test'` and everything works.
+ *
+ * Also exports individual functions: `fn`, `spyOn`, `mock`, `mockDeep`, `restoreAll`.
  */
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-/** A recorded call to a mock function. */
-export interface MockCall {
-  readonly args: readonly unknown[];
-  readonly result: unknown;
-  readonly error: unknown | undefined;
-  readonly timestamp: number;
+/** Result of a single mock invocation. */
+export interface MockResult<T> {
+  readonly type: "return" | "throw";
+  readonly value: T;
 }
 
-/** A mock function with call tracking and behavior control. */
-export interface MockFn<TArgs extends readonly unknown[] = readonly unknown[], TReturn = unknown> {
+/** A Vitest-compatible mock function. */
+export interface MockFn<T extends (...args: readonly unknown[]) => unknown = (...args: readonly unknown[]) => unknown> {
   /** Call the mock. */
-  (...args: TArgs): TReturn;
-  /** All recorded calls. */
-  readonly calls: readonly MockCall[];
-  /** Number of times called. */
-  readonly callCount: number;
-  /** Arguments of the last call. */
-  readonly lastCall: readonly unknown[] | undefined;
-  /** Whether the mock was called at least once. */
-  readonly called: boolean;
-  /** Set the return value for all subsequent calls. */
-  returns(value: TReturn): MockFn<TArgs, TReturn>;
-  /** Set the implementation for all subsequent calls. */
-  impl(fn: (...args: TArgs) => TReturn): MockFn<TArgs, TReturn>;
-  /** Set return values in sequence (one per call, then repeats last). */
-  returnsOnce(...values: readonly TReturn[]): MockFn<TArgs, TReturn>;
-  /** Make the mock throw on every call. */
-  throws(error: unknown): MockFn<TArgs, TReturn>;
-  /** Reset call history but keep behavior. */
-  resetCalls(): void;
-  /** Reset everything: calls and behavior. */
-  resetAll(): void;
+  (...args: Parameters<T>): ReturnType<T>;
+
+  /** Call tracking data. */
+  readonly mock: {
+    /** Arguments for each call. */
+    readonly calls: Parameters<T>[];
+    /** Return/throw results for each call. */
+    readonly results: MockResult<ReturnType<T>>[];
+    /** Arguments of the last call, or undefined. */
+    readonly lastCall: Parameters<T> | undefined;
+    /** Number of times called. */
+    readonly invocationCallOrder: number[];
+  };
+
+  // ── Naming ──
+
+  /** Get the mock's name. */
+  getMockName(): string;
+  /** Set the mock's name (for assertion messages). */
+  mockName(name: string): MockFn<T>;
+
+  // ── History ──
+
+  /** Clear call history, keep implementation. */
+  mockClear(): MockFn<T>;
+  /** Clear history and reset implementation to default. */
+  mockReset(): MockFn<T>;
+  /** Clear history and restore original (spyOn only). */
+  mockRestore(): void;
+
+  // ── Implementation ──
+
+  /** Set the implementation. */
+  mockImplementation(fn: T): MockFn<T>;
+  /** Set a one-time implementation (chainable, uses queue). */
+  mockImplementationOnce(fn: T): MockFn<T>;
+  /** Get the current implementation. */
+  getMockImplementation(): T | undefined;
+
+  // ── Return values ──
+
+  /** Set the return value for all calls. */
+  mockReturnValue(value: ReturnType<T>): MockFn<T>;
+  /** Set a one-time return value (chainable). */
+  mockReturnValueOnce(value: ReturnType<T>): MockFn<T>;
+  /** Set the mock to resolve with a value (async). */
+  mockResolvedValue(value: Awaited<ReturnType<T>>): MockFn<T>;
+  /** Set a one-time resolved value (async, chainable). */
+  mockResolvedValueOnce(value: Awaited<ReturnType<T>>): MockFn<T>;
+  /** Set the mock to reject with a value (async). */
+  mockRejectedValue(value: unknown): MockFn<T>;
+  /** Set a one-time rejected value (async, chainable). */
+  mockRejectedValueOnce(value: unknown): MockFn<T>;
+  /** Set the mock to throw a value. */
+  mockThrow(value: unknown): MockFn<T>;
+  /** Set a one-time throw (chainable). */
+  mockThrowOnce(value: unknown): MockFn<T>;
+  /** Set the mock to return `this`. */
+  mockReturnThis(): MockFn<T>;
 }
 
 /** Info tracked for spyOn restoration. */
@@ -50,118 +84,158 @@ interface SpyRecord {
   readonly target: Record<string, unknown>;
   readonly method: string;
   readonly original: unknown;
+  readonly mock: MockFn;
 }
 
-// ── Global spy registry ─────────────────────────────────────────────────────
+// ── Global state ────────────────────────────────────────────────────────────
 
 const spyRegistry: SpyRecord[] = [];
+let globalCallOrder = 0;
 
-// ── fn() — create a standalone mock function ────────────────────────────────
+// ── fn() ────────────────────────────────────────────────────────────────────
 
-/** Create a mock function (spy/stub). */
-export const fn = <TArgs extends readonly unknown[] = readonly unknown[], TReturn = unknown>(
-  initialImpl?: (...args: TArgs) => TReturn,
-): MockFn<TArgs, TReturn> => {
-  const calls: MockCall[] = [];
-  let implementation: ((...args: TArgs) => TReturn) | undefined = initialImpl;
-  let returnValue: TReturn | undefined;
-  let throwValue: unknown | undefined;
-  let returnSequence: TReturn[] = [];
-  let sequenceIndex = 0;
-  let mode: "default" | "return" | "impl" | "throw" | "sequence" = initialImpl ? "impl" : "default";
+/** Create a mock function. Vitest-compatible API. */
+export const fn = <T extends (...args: readonly unknown[]) => unknown = (...args: readonly unknown[]) => unknown>(
+  initialImpl?: T,
+): MockFn<T> => {
+  let name = "vi.fn()";
+  let impl: T | undefined = initialImpl;
+  const implOnceQueue: T[] = [];
+  const returnOnceQueue: ReturnType<T>[] = [];
+  const throwOnceQueue: unknown[] = [];
+  let fixedReturn: { value: ReturnType<T> } | undefined;
+  let fixedThrow: { value: unknown } | undefined;
+  let returnThis = false;
 
-  const mockFn = (...args: TArgs): TReturn => {
-    let result: unknown;
-    let error: unknown;
+  const calls: Parameters<T>[] = [];
+  const results: MockResult<ReturnType<T>>[] = [];
+  const invocationCallOrder: number[] = [];
+
+  const mockData = {
+    get calls() { return calls; },
+    get results() { return results; },
+    get lastCall() { return calls.length > 0 ? calls[calls.length - 1] : undefined; },
+    get invocationCallOrder() { return invocationCallOrder; },
+  };
+
+  const mockFn = function (this: unknown, ...args: Parameters<T>): ReturnType<T> {
+    calls.push(args);
+    invocationCallOrder.push(++globalCallOrder);
 
     try {
-      switch (mode) {
-        case "throw":
-          throw throwValue;
-        case "return":
-          result = returnValue;
-          break;
-        case "sequence":
-          result =
-            sequenceIndex < returnSequence.length
-              ? returnSequence[sequenceIndex++]
-              : returnSequence[returnSequence.length - 1];
-          break;
-        case "impl":
-          result = implementation!(...args);
-          break;
-        default:
-          result = undefined;
+      let result: ReturnType<T>;
+
+      if (throwOnceQueue.length > 0) {
+        const err = throwOnceQueue.shift()!;
+        results.push({ type: "throw", value: err as ReturnType<T> });
+        throw err;
       }
+
+      if (fixedThrow !== undefined) {
+        results.push({ type: "throw", value: fixedThrow.value as ReturnType<T> });
+        throw fixedThrow.value;
+      }
+
+      if (returnThis) {
+        result = this as ReturnType<T>;
+      } else if (returnOnceQueue.length > 0) {
+        result = returnOnceQueue.shift()!;
+      } else if (implOnceQueue.length > 0) {
+        result = implOnceQueue.shift()!(...args) as ReturnType<T>;
+      } else if (fixedReturn !== undefined) {
+        result = fixedReturn.value;
+      } else if (impl !== undefined) {
+        result = impl(...args) as ReturnType<T>;
+      } else {
+        result = undefined as ReturnType<T>;
+      }
+
+      results.push({ type: "return", value: result });
+      return result;
     } catch (e) {
-      error = e;
-      calls.push({ args, result: undefined, error, timestamp: Date.now() });
+      if (results.length === 0 || results[results.length - 1]!.type !== "throw") {
+        results.push({ type: "throw", value: e as ReturnType<T> });
+      }
       throw e;
     }
+  } as MockFn<T>;
 
-    calls.push({ args, result, error: undefined, timestamp: Date.now() });
-    return result as TReturn;
-  };
+  // Attach mock data
+  Object.defineProperty(mockFn, "mock", { get: () => mockData });
 
-  Object.defineProperties(mockFn, {
-    calls: { get: () => calls },
-    callCount: { get: () => calls.length },
-    lastCall: {
-      get: () => (calls.length > 0 ? calls[calls.length - 1]!.args : undefined),
-    },
-    called: { get: () => calls.length > 0 },
-  });
+  // Naming
+  mockFn.getMockName = () => name;
+  mockFn.mockName = (n: string) => { name = n; return mockFn; };
 
-  mockFn.returns = (value: TReturn): MockFn<TArgs, TReturn> => {
-    mode = "return";
-    returnValue = value;
-    return mockFn as MockFn<TArgs, TReturn>;
-  };
-
-  mockFn.impl = (f: (...args: TArgs) => TReturn): MockFn<TArgs, TReturn> => {
-    mode = "impl";
-    implementation = f;
-    return mockFn as MockFn<TArgs, TReturn>;
-  };
-
-  mockFn.returnsOnce = (...values: readonly TReturn[]): MockFn<TArgs, TReturn> => {
-    mode = "sequence";
-    returnSequence = [...values];
-    sequenceIndex = 0;
-    return mockFn as MockFn<TArgs, TReturn>;
-  };
-
-  mockFn.throws = (error: unknown): MockFn<TArgs, TReturn> => {
-    mode = "throw";
-    throwValue = error;
-    return mockFn as MockFn<TArgs, TReturn>;
-  };
-
-  mockFn.resetCalls = (): void => {
+  // History
+  mockFn.mockClear = () => {
     calls.length = 0;
+    results.length = 0;
+    invocationCallOrder.length = 0;
+    return mockFn;
   };
 
-  mockFn.resetAll = (): void => {
-    calls.length = 0;
-    mode = "default";
-    implementation = undefined;
-    returnValue = undefined;
-    throwValue = undefined;
-    returnSequence = [];
-    sequenceIndex = 0;
+  mockFn.mockReset = () => {
+    mockFn.mockClear();
+    impl = undefined;
+    implOnceQueue.length = 0;
+    returnOnceQueue.length = 0;
+    throwOnceQueue.length = 0;
+    fixedReturn = undefined;
+    fixedThrow = undefined;
+    returnThis = false;
+    return mockFn;
   };
 
-  return mockFn as MockFn<TArgs, TReturn>;
+  mockFn.mockRestore = () => {
+    mockFn.mockReset();
+    // For spyOn, the actual restore is handled by restoreAll()
+    const record = spyRegistry.find((r) => r.mock === mockFn);
+    if (record) {
+      record.target[record.method] = record.original;
+      spyRegistry.splice(spyRegistry.indexOf(record), 1);
+    }
+  };
+
+  // Implementation
+  mockFn.mockImplementation = (f: T) => { impl = f; return mockFn; };
+  mockFn.mockImplementationOnce = (f: T) => { implOnceQueue.push(f); return mockFn; };
+  mockFn.getMockImplementation = () => impl;
+
+  // Return values
+  mockFn.mockReturnValue = (value: ReturnType<T>) => { fixedReturn = { value }; return mockFn; };
+  mockFn.mockReturnValueOnce = (value: ReturnType<T>) => { returnOnceQueue.push(value); return mockFn; };
+
+  mockFn.mockResolvedValue = (value: Awaited<ReturnType<T>>) => {
+    impl = (() => Promise.resolve(value)) as unknown as T;
+    return mockFn;
+  };
+  mockFn.mockResolvedValueOnce = (value: Awaited<ReturnType<T>>) => {
+    implOnceQueue.push((() => Promise.resolve(value)) as unknown as T);
+    return mockFn;
+  };
+
+  mockFn.mockRejectedValue = (value: unknown) => {
+    impl = (() => Promise.reject(value)) as unknown as T;
+    return mockFn;
+  };
+  mockFn.mockRejectedValueOnce = (value: unknown) => {
+    implOnceQueue.push((() => Promise.reject(value)) as unknown as T);
+    return mockFn;
+  };
+
+  mockFn.mockThrow = (value: unknown) => { fixedThrow = { value }; return mockFn; };
+  mockFn.mockThrowOnce = (value: unknown) => { throwOnceQueue.push(value); return mockFn; };
+  mockFn.mockReturnThis = () => { returnThis = true; return mockFn; };
+
+  return mockFn;
 };
 
-// ── spyOn() — spy on an existing method ─────────────────────────────────────
+// ── spyOn() ─────────────────────────────────────────────────────────────────
 
 /**
- * Replace a method on an object with a spy. The original is saved and
- * can be restored via `restore()` or `restoreAll()`.
- *
- * By default, the spy calls through to the original. Use `.returns()` or
- * `.impl()` to override behavior.
+ * Spy on a method. Calls through to original by default.
+ * Use `.mockImplementation()` or `.mockReturnValue()` to override.
  */
 export const spyOn = <T extends Record<string, unknown>>(
   target: T,
@@ -175,19 +249,17 @@ export const spyOn = <T extends Record<string, unknown>>(
   const spy = fn((...args: readonly unknown[]) =>
     (original as (...a: readonly unknown[]) => unknown).apply(target, [...args]),
   );
+  spy.mockName(`spy.${method}`);
 
-  spyRegistry.push({ target: target as Record<string, unknown>, method, original });
+  spyRegistry.push({ target: target as Record<string, unknown>, method, original, mock: spy });
   (target as Record<string, unknown>)[method] = spy;
 
   return spy;
 };
 
-// ── mock() — shallow mock all methods ───────────────────────────────────────
+// ── mock() / mockDeep() ─────────────────────────────────────────────────────
 
-/**
- * Replace all function properties on an object with spies.
- * Returns the same object (mutated) with all methods mocked.
- */
+/** Shallow mock: replace all methods on an object with spies. */
 export const mock = <T extends Record<string, unknown>>(obj: T): T => {
   for (const key of Object.keys(obj)) {
     if (typeof obj[key] === "function") {
@@ -197,29 +269,7 @@ export const mock = <T extends Record<string, unknown>>(obj: T): T => {
   return obj;
 };
 
-// ── mockDeep() — recursively mock all methods ───────────────────────────────
-
-/**
- * Recursively replace all function properties on an object and its nested
- * objects with spies. Returns the same object (mutated).
- *
- * @example
- * ```ts
- * const db = mockDeep({
- *   users: {
- *     find: (id) => ({ id, name: 'Alice' }),
- *     create: (data) => ({ id: 1, ...data }),
- *   },
- *   posts: {
- *     list: () => [],
- *   },
- * })
- *
- * db.users.find.returns({ id: 1, name: 'Mock' })
- * db.users.find(1) // { id: 1, name: 'Mock' }
- * db.users.find.callCount // 1
- * ```
- */
+/** Deep mock: recursively replace all methods on nested objects with spies. */
 export const mockDeep = <T extends Record<string, unknown>>(obj: T, seen?: Set<unknown>): T => {
   const visited = seen ?? new Set();
   if (visited.has(obj)) return obj;
@@ -236,7 +286,7 @@ export const mockDeep = <T extends Record<string, unknown>>(obj: T, seen?: Set<u
   return obj;
 };
 
-// ── restore ─────────────────────────────────────────────────────────────────
+// ── restoreAll() ────────────────────────────────────────────────────────────
 
 /** Restore all spied methods to their originals. */
 export const restoreAll = (): void => {
@@ -244,4 +294,37 @@ export const restoreAll = (): void => {
     const record = spyRegistry.pop()!;
     record.target[record.method] = record.original;
   }
+};
+
+// ── vi namespace (Vitest compatibility) ─────────────────────────────────────
+
+/**
+ * Vitest-compatible `vi` namespace.
+ *
+ * @example
+ * ```ts
+ * // Change this:
+ * import { vi } from 'vitest'
+ * // To this:
+ * import { vi } from '@igorjs/pure-test'
+ *
+ * const spy = vi.fn()
+ * vi.spyOn(obj, 'method')
+ * vi.restoreAllMocks()
+ * ```
+ */
+export const vi = {
+  fn,
+  spyOn,
+  restoreAllMocks: restoreAll,
+  clearAllMocks: (): void => {
+    for (const record of spyRegistry) {
+      (record.mock as MockFn).mockClear();
+    }
+  },
+  resetAllMocks: (): void => {
+    for (const record of spyRegistry) {
+      (record.mock as MockFn).mockReset();
+    }
+  },
 };

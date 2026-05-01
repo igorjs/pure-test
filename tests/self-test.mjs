@@ -7,7 +7,7 @@
  *   bun tests/self-test.mjs
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, fn, spyOn, mock, mockDeep, restoreAll } from "../dist/index.js";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, fn, spyOn, mock, mockDeep, restoreAll, vi } from "../dist/index.js";
 
 // ── expect.toBe ─────────────────────────────────────────────────────────────
 
@@ -290,69 +290,136 @@ describe.concurrent("concurrent tests", () => {
   });
 });
 
-// ── fn() mock function ──────────────────────────────────────────────────────
+// ── fn() — Vitest-compatible mock function ──────────────────────────────────
 
 describe("fn()", () => {
-  it("tracks calls", () => {
+  it("tracks calls via mock.calls", () => {
     const spy = fn();
     spy(1, 2);
     spy("a");
-    expect(spy.callCount).toBe(2);
-    expect(spy.called).toBeTruthy();
-    expect(spy.lastCall).toEqual(["a"]);
+    expect(spy.mock.calls).toHaveLength(2);
+    expect(spy.mock.calls[0]).toEqual([1, 2]);
+    expect(spy.mock.lastCall).toEqual(["a"]);
+  });
+
+  it("tracks results via mock.results", () => {
+    const spy = fn().mockReturnValue(42);
+    spy();
+    expect(spy.mock.results[0].type).toBe("return");
+    expect(spy.mock.results[0].value).toBe(42);
   });
 
   it("returns undefined by default", () => {
-    const spy = fn();
-    expect(spy()).toBeUndefined();
+    expect(fn()()).toBeUndefined();
   });
 
-  it("returns a set value", () => {
-    const spy = fn().returns(42);
+  it("mockReturnValue sets fixed return", () => {
+    const spy = fn().mockReturnValue(42);
     expect(spy()).toBe(42);
     expect(spy()).toBe(42);
   });
 
-  it("uses custom implementation", () => {
-    const spy = fn().impl((a, b) => a + b);
-    expect(spy(2, 3)).toBe(5);
-  });
-
-  it("returns values in sequence", () => {
-    const spy = fn().returnsOnce(1, 2, 3);
+  it("mockReturnValueOnce chains one-time returns", () => {
+    const spy = fn()
+      .mockReturnValueOnce(1)
+      .mockReturnValueOnce(2)
+      .mockReturnValueOnce(3);
     expect(spy()).toBe(1);
     expect(spy()).toBe(2);
     expect(spy()).toBe(3);
-    expect(spy()).toBe(3); // repeats last
+    expect(spy()).toBeUndefined(); // exhausted
   });
 
-  it("throws on call", () => {
-    const spy = fn().throws(new Error("boom"));
+  it("mockImplementation sets custom behavior", () => {
+    const spy = fn().mockImplementation((a, b) => a + b);
+    expect(spy(2, 3)).toBe(5);
+  });
+
+  it("mockImplementationOnce queues one-time impl", () => {
+    const spy = fn()
+      .mockImplementation(() => "default")
+      .mockImplementationOnce(() => "first")
+      .mockImplementationOnce(() => "second");
+    expect(spy()).toBe("first");
+    expect(spy()).toBe("second");
+    expect(spy()).toBe("default");
+  });
+
+  it("mockResolvedValue returns resolved promise", async () => {
+    const spy = fn().mockResolvedValue(42);
+    expect(await spy()).toBe(42);
+  });
+
+  it("mockResolvedValueOnce chains async returns", async () => {
+    const spy = fn()
+      .mockResolvedValueOnce("a")
+      .mockResolvedValueOnce("b");
+    expect(await spy()).toBe("a");
+    expect(await spy()).toBe("b");
+  });
+
+  it("mockRejectedValue returns rejected promise", async () => {
+    const spy = fn().mockRejectedValue(new Error("fail"));
+    try {
+      await spy();
+      expect(true).toBe(false); // should not reach
+    } catch (e) {
+      expect(e.message).toBe("fail");
+    }
+  });
+
+  it("mockThrow throws on every call", () => {
+    const spy = fn().mockThrow(new Error("boom"));
     expect(() => spy()).toThrow("boom");
-    expect(spy.callCount).toBe(1);
+    expect(spy.mock.calls).toHaveLength(1);
   });
 
-  it("resets calls", () => {
-    const spy = fn().returns(1);
+  it("mockThrowOnce throws once then normal", () => {
+    const spy = fn()
+      .mockReturnValue("ok")
+      .mockThrowOnce(new Error("once"));
+    expect(() => spy()).toThrow("once");
+    expect(spy()).toBe("ok");
+  });
+
+  it("mockReturnThis returns this context", () => {
+    const spy = fn().mockReturnThis();
+    const obj = { method: spy };
+    expect(obj.method()).toBe(obj);
+  });
+
+  it("mockClear clears history, keeps behavior", () => {
+    const spy = fn().mockReturnValue(1);
     spy();
     spy();
-    spy.resetCalls();
-    expect(spy.callCount).toBe(0);
+    spy.mockClear();
+    expect(spy.mock.calls).toHaveLength(0);
     expect(spy()).toBe(1); // behavior preserved
   });
 
-  it("resets everything", () => {
-    const spy = fn().returns(99);
+  it("mockReset clears everything", () => {
+    const spy = fn().mockReturnValue(99);
     spy();
-    spy.resetAll();
-    expect(spy.callCount).toBe(0);
+    spy.mockReset();
+    expect(spy.mock.calls).toHaveLength(0);
     expect(spy()).toBeUndefined(); // behavior reset
+  });
+
+  it("mockName and getMockName", () => {
+    const spy = fn().mockName("myMock");
+    expect(spy.getMockName()).toBe("myMock");
+  });
+
+  it("getMockImplementation returns current impl", () => {
+    const impl = (x) => x * 2;
+    const spy = fn().mockImplementation(impl);
+    expect(spy.getMockImplementation()).toBe(impl);
   });
 
   it("wraps an initial implementation", () => {
     const spy = fn((x) => x * 2);
     expect(spy(5)).toBe(10);
-    expect(spy.callCount).toBe(1);
+    expect(spy.mock.calls).toHaveLength(1);
   });
 });
 
@@ -365,27 +432,71 @@ describe("spyOn()", () => {
     const obj = { greet: (name) => `hello ${name}` };
     const spy = spyOn(obj, "greet");
     expect(obj.greet("world")).toBe("hello world");
-    expect(spy.callCount).toBe(1);
-    expect(spy.lastCall).toEqual(["world"]);
+    expect(spy.mock.calls).toHaveLength(1);
+    expect(spy.mock.lastCall).toEqual(["world"]);
   });
 
-  it("can override return value", () => {
+  it("can override with mockReturnValue", () => {
     const obj = { getValue: () => "real" };
-    spyOn(obj, "getValue").returns("mocked");
+    spyOn(obj, "getValue").mockReturnValue("mocked");
     expect(obj.getValue()).toBe("mocked");
   });
 
-  it("restores original on restoreAll", () => {
+  it("mockRestore restores original", () => {
     const obj = { getValue: () => "real" };
-    spyOn(obj, "getValue").returns("mocked");
+    const spy = spyOn(obj, "getValue").mockReturnValue("mocked");
     expect(obj.getValue()).toBe("mocked");
-    restoreAll();
+    spy.mockRestore();
     expect(obj.getValue()).toBe("real");
+  });
+
+  it("restoreAll restores all spies", () => {
+    const obj = { a: () => 1, b: () => 2 };
+    spyOn(obj, "a").mockReturnValue(10);
+    spyOn(obj, "b").mockReturnValue(20);
+    restoreAll();
+    expect(obj.a()).toBe(1);
+    expect(obj.b()).toBe(2);
   });
 
   it("throws if target is not a function", () => {
     const obj = { value: 42 };
     expect(() => spyOn(obj, "value")).toThrow("not a function");
+  });
+});
+
+// ── vi namespace ────────────────────────────────────────────────────────────
+
+describe("vi namespace", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("vi.fn() creates a mock", () => {
+    const spy = vi.fn();
+    spy(1);
+    expect(spy.mock.calls).toHaveLength(1);
+  });
+
+  it("vi.spyOn() spies on methods", () => {
+    const obj = { add: (a, b) => a + b };
+    const spy = vi.spyOn(obj, "add");
+    expect(obj.add(1, 2)).toBe(3);
+    expect(spy.mock.calls[0]).toEqual([1, 2]);
+  });
+
+  it("vi.clearAllMocks() clears history", () => {
+    const obj = { getValue: () => 1 };
+    const spy = vi.spyOn(obj, "getValue");
+    obj.getValue();
+    vi.clearAllMocks();
+    expect(spy.mock.calls).toHaveLength(0);
+  });
+
+  it("vi.resetAllMocks() resets everything", () => {
+    const obj = { getValue: () => 1 };
+    vi.spyOn(obj, "getValue").mockReturnValue(99);
+    expect(obj.getValue()).toBe(99);
+    vi.resetAllMocks();
+    expect(obj.getValue()).toBeUndefined(); // impl cleared
   });
 });
 
@@ -395,17 +506,13 @@ describe("mock()", () => {
   afterEach(() => restoreAll());
 
   it("replaces all methods with spies", () => {
-    const obj = {
-      a: () => 1,
-      b: () => 2,
-      notAFn: "hello",
-    };
+    const obj = { a: () => 1, b: () => 2, notAFn: "hello" };
     mock(obj);
     obj.a();
     obj.b();
-    expect(obj.a.callCount).toBe(1);
-    expect(obj.b.callCount).toBe(1);
-    expect(obj.notAFn).toBe("hello"); // non-functions untouched
+    expect(obj.a.mock.calls).toHaveLength(1);
+    expect(obj.b.mock.calls).toHaveLength(1);
+    expect(obj.notAFn).toBe("hello");
   });
 });
 
@@ -416,37 +523,21 @@ describe("mockDeep()", () => {
 
   it("mocks nested methods recursively", () => {
     const db = {
-      users: {
-        find: (id) => ({ id, name: "Alice" }),
-        create: (data) => ({ id: 1, ...data }),
-      },
-      posts: {
-        list: () => [],
-      },
+      users: { find: (id) => ({ id }), create: (data) => data },
+      posts: { list: () => [] },
     };
-
     mockDeep(db);
-
     db.users.find(1);
-    db.users.create({ name: "Bob" });
     db.posts.list();
-
-    expect(db.users.find.callCount).toBe(1);
-    expect(db.users.find.lastCall).toEqual([1]);
-    expect(db.users.create.callCount).toBe(1);
-    expect(db.posts.list.callCount).toBe(1);
+    expect(db.users.find.mock.calls).toHaveLength(1);
+    expect(db.users.find.mock.lastCall).toEqual([1]);
+    expect(db.posts.list.mock.calls).toHaveLength(1);
   });
 
   it("allows overriding nested return values", () => {
-    const service = {
-      auth: {
-        login: () => null,
-      },
-    };
-
+    const service = { auth: { login: () => null } };
     mockDeep(service);
-    service.auth.login.returns({ token: "abc" });
-
+    service.auth.login.mockReturnValue({ token: "abc" });
     expect(service.auth.login()).toEqual({ token: "abc" });
   });
 
@@ -457,18 +548,12 @@ describe("mockDeep()", () => {
   });
 
   it("restores everything on restoreAll", () => {
-    const service = {
-      db: {
-        query: () => "real result",
-      },
-    };
-
+    const service = { db: { query: () => "real" } };
     mockDeep(service);
-    service.db.query.returns("mocked");
+    service.db.query.mockReturnValue("mocked");
     expect(service.db.query()).toBe("mocked");
-
     restoreAll();
-    expect(service.db.query()).toBe("real result");
+    expect(service.db.query()).toBe("real");
   });
 });
 
