@@ -26,7 +26,7 @@ Works identically on Node.js, Deno, Bun, Cloudflare Workers, and browsers.
 npm install @igorjs/pure-test --save-dev
 ```
 
-## Usage
+## Quick Start
 
 ```ts
 import { describe, it, expect } from '@igorjs/pure-test'
@@ -45,18 +45,12 @@ describe('math', () => {
 // Auto-runs when the module finishes loading. No run() call needed.
 ```
 
-### Run with any runtime
+Run with any runtime:
 
 ```bash
-# Direct execution (auto-run)
 node tests/math.test.mjs
 deno run --allow-all tests/math.test.mjs
 bun tests/math.test.mjs
-
-# CLI (discovers and runs all test files)
-npx pure-test tests/
-npx pure-test tests/ --reporter tap
-npx pure-test tests/ --reporter json
 ```
 
 ## CLI
@@ -71,25 +65,40 @@ Options:
 Discovers: *.test.mjs, *.test.js, *.spec.mjs, *.spec.js
 ```
 
-The CLI imports all discovered test files in a single process, then runs everything once. No workers, no transforms, no config parsing.
+The CLI imports all discovered test files in a single process, then runs everything once. No workers, no transforms, no config.
 
-## API
+```bash
+npx pure-test tests/                     # discover and run all tests
+npx pure-test tests/ --reporter tap      # TAP output
+npx pure-test tests/ --reporter json     # JSON output
+npx pure-test tests/ --reporter minimal  # dots output
+npx pure-test tests/math.test.mjs        # single file
+```
 
-### Test registration
+## API Reference
+
+### Test Registration
 
 ```ts
 describe(name, fn)              // define a suite (nestable)
-describe.concurrent(name, fn)   // define a suite with parallel test execution
+describe.concurrent(name, fn)   // suite with parallel test execution
 describe.skip(name, fn)         // skip a suite
 it(name, fn) / test(name, fn)   // define a test (sync or async)
 it.skip(name, fn)               // skip a test
-beforeAll(fn)                   // run once before all tests in the suite
-afterAll(fn)                    // run once after all tests in the suite
-beforeEach(fn)                  // run before each test in the suite
-afterEach(fn)                   // run after each test in the suite
 ```
 
-### Concurrent execution
+### Lifecycle Hooks
+
+```ts
+beforeAll(fn)    // run once before all tests in the suite
+afterAll(fn)     // run once after all tests in the suite
+beforeEach(fn)   // run before each test in the suite
+afterEach(fn)    // run after each test in the suite
+```
+
+Hooks inherit: a `beforeEach` in an outer `describe` runs before each test in all nested `describe` blocks.
+
+### Concurrent Execution
 
 By default, tests run sequentially. Use `describe.concurrent` when tests are independent:
 
@@ -131,82 +140,421 @@ All assertions support `.not`:
 ```ts
 expect(1).not.toBe(2)
 expect([1, 2]).not.toContain(3)
+expect(() => {}).not.toThrow()
+```
+
+### Spies
+
+Create standalone spy functions or spy on existing methods.
+
+#### `spyFn(impl?)`
+
+Create a standalone spy function. Optionally wrap an implementation.
+
+```ts
+import { spyFn } from '@igorjs/pure-test'
+
+const callback = spyFn()
+callback(1, 2)
+callback('a')
+
+callback.mock.calls        // [[1, 2], ['a']]
+callback.mock.lastCall     // ['a']
+callback.mock.calls.length // 2
+callback.mock.results      // [{ type: 'return', value: undefined }, ...]
+
+// With initial implementation
+const double = spyFn((x) => x * 2)
+double(5) // 10
+```
+
+#### `spyOn(object, method)`
+
+Spy on an existing method. Calls through to the original by default.
+
+```ts
+import { spyOn, restoreAll } from '@igorjs/pure-test'
+
+const obj = { greet: (name) => `hello ${name}` }
+const spy = spyOn(obj, 'greet')
+
+obj.greet('world')         // 'hello world' (calls original)
+spy.mock.calls             // [['world']]
+
+spy.mockReturnValue('hi')
+obj.greet('world')         // 'hi' (overridden)
+
+spy.mockRestore()          // restore original
+obj.greet('world')         // 'hello world'
+```
+
+### Spy Behavior Control
+
+All spy methods are chainable and Vitest-compatible:
+
+```ts
+const spy = spyFn()
+
+// Fixed return value
+spy.mockReturnValue(42)
+spy() // 42
+
+// One-time return values (chainable, uses queue)
+spy.mockReturnValueOnce(1).mockReturnValueOnce(2).mockReturnValueOnce(3)
+spy() // 1
+spy() // 2
+spy() // 3
+spy() // falls through to mockReturnValue or undefined
+
+// Custom implementation
+spy.mockImplementation((a, b) => a + b)
+spy(2, 3) // 5
+
+// One-time implementation
+spy.mockImplementationOnce(() => 'once')
+spy() // 'once'
+spy() // falls through to mockImplementation
+
+// Async: resolved promise
+spy.mockResolvedValue({ data: 'ok' })
+await spy() // { data: 'ok' }
+
+// Async: one-time resolved
+spy.mockResolvedValueOnce('first').mockResolvedValueOnce('second')
+await spy() // 'first'
+await spy() // 'second'
+
+// Async: rejected promise
+spy.mockRejectedValue(new Error('fail'))
+await spy() // throws Error('fail')
+
+// Async: one-time rejected
+spy.mockRejectedValueOnce(new Error('once'))
+
+// Throw synchronously
+spy.mockThrow(new Error('boom'))
+spy() // throws Error('boom')
+
+// One-time throw
+spy.mockThrowOnce(new Error('once'))
+
+// Return `this` context
+spy.mockReturnThis()
+const obj = { method: spy }
+obj.method() === obj // true
+```
+
+### Spy Inspection
+
+```ts
+spy.mock.calls              // Parameters<T>[] — all call arguments
+spy.mock.lastCall            // Parameters<T> | undefined — last call args
+spy.mock.results             // { type: 'return'|'throw', value }[] — all results
+spy.mock.invocationCallOrder // number[] — global call ordering
+
+spy.getMockName()            // string — spy's name
+spy.mockName('myFn')         // set name (for assertion messages)
+spy.getMockImplementation()  // T | undefined — current implementation
+```
+
+### Spy Reset
+
+```ts
+spy.mockClear()    // clear call history, keep implementation
+spy.mockReset()    // clear history + reset implementation to default
+spy.mockRestore()  // clear history + restore original (spyOn only)
+```
+
+### Object Mocking
+
+#### `mock(object)`
+
+Shallow mock: replace all function properties with spies.
+
+```ts
+import { mock, restoreAll } from '@igorjs/pure-test'
+
+const api = {
+  getUser: (id) => fetch(`/users/${id}`),
+  deleteUser: (id) => fetch(`/users/${id}`, { method: 'DELETE' }),
+  baseUrl: 'https://api.example.com',
+}
+
+mock(api)
+api.getUser(1)
+api.getUser.mock.calls     // [[1]]
+api.baseUrl                // 'https://api.example.com' (non-functions untouched)
+restoreAll()               // restore originals
+```
+
+#### `mockDeep(object)`
+
+Recursively mock all methods on nested objects.
+
+```ts
+import { mockDeep, restoreAll } from '@igorjs/pure-test'
+
+const db = {
+  users: {
+    find: (id) => ({ id, name: 'Alice' }),
+    create: (data) => ({ id: 1, ...data }),
+  },
+  posts: {
+    list: () => [],
+  },
+}
+
+mockDeep(db)
+
+db.users.find.mockReturnValue({ id: 1, name: 'Mock' })
+db.users.find(1)             // { id: 1, name: 'Mock' }
+db.users.find.mock.calls     // [[1]]
+db.posts.list.mock.calls     // []
+
+restoreAll()                 // restore all originals at every level
+```
+
+Handles circular references safely.
+
+### Bulk Operations
+
+```ts
+import { restoreAll, clearAllMocks, resetAllMocks } from '@igorjs/pure-test'
+
+restoreAll()       // restore all spied methods to originals
+clearAllMocks()    // clear call history on all spies, keep implementations
+resetAllMocks()    // clear history + reset implementations on all spies
 ```
 
 ### Reporters
 
 Four built-in output formats:
 
+| Reporter | Description | Use case |
+|----------|-------------|----------|
+| `spec` | Human-readable with suite nesting (default) | Local development |
+| `tap` | TAP format | CI pipelines, piping to TAP consumers |
+| `json` | Machine-readable JSON | Custom tooling, dashboards |
+| `minimal` | Dots (`.` pass, `F` fail, `s` skip) | Large test suites, quick overview |
+
 ```bash
-pure-test tests/ --reporter spec     # human-readable (default)
-pure-test tests/ --reporter tap      # TAP format (pipeable)
-pure-test tests/ --reporter json     # machine-readable JSON
-pure-test tests/ --reporter minimal  # dots: ...F.s..
+pure-test tests/ --reporter spec
+pure-test tests/ --reporter tap
+pure-test tests/ --reporter json
+pure-test tests/ --reporter minimal
 ```
 
-Programmatic reporter selection:
+Programmatic selection:
 
 ```ts
 import { setReporter } from '@igorjs/pure-test'
 setReporter('tap')
 ```
 
-Custom reporters:
+Custom reporter:
 
 ```ts
 import { setReporter } from '@igorjs/pure-test'
 
 setReporter({
   name: 'custom',
-  format: (summary) => `${summary.passed}/${summary.results.length} passed`
+  format: (summary) => {
+    const icon = summary.failed > 0 ? 'FAIL' : 'PASS'
+    return `${icon}: ${summary.passed}/${summary.results.length} passed in ${Math.round(summary.duration)}ms`
+  }
 })
 ```
 
-## Test isolation
+## Test Isolation
 
 Pure Test does **not** isolate tests. This is intentional.
 
 Worker-per-file isolation (like Jest) costs ~50ms per file. For a project with 100 test files, that's 5 seconds of overhead before any test runs.
 
-Instead, Pure Test gives you the tools for isolation:
+Instead, use the tools provided:
 
 ```ts
 describe('database', () => {
   let db
 
   beforeEach(() => {
-    db = createTestDb()  // fresh state per test
+    db = createTestDb()    // fresh state per test
   })
 
   afterEach(() => {
-    db.close()           // cleanup per test
+    db.close()             // cleanup per test
   })
 
-  it('inserts a record', () => {
+  it('inserts', () => {
     db.insert({ id: 1 })
     expect(db.count()).toBe(1)
   })
 
   it('starts empty', () => {
-    expect(db.count()).toBe(0)  // not affected by previous test
+    expect(db.count()).toBe(0) // not affected by previous test
   })
 })
 ```
 
 If your tests have race conditions in sequential mode, that's a bug in the tests. `describe.concurrent` is opt-in: you explicitly take responsibility for independence.
 
-## Why not Jest/Vitest?
+## Porting from Jest
 
-| | Pure Test | Jest | Vitest |
+```diff
+  // package.json
+  "scripts": {
+-   "test": "jest"
++   "test": "pure-test tests/"
+  }
+```
+
+```diff
+  // Rename: *.test.ts → *.test.mjs (or use runtime-native TS)
+
+- import { describe, it, expect, jest } from '@jest/globals'
++ import { describe, it, expect, spyFn, spyOn, restoreAll } from '@igorjs/pure-test'
+
+  // jest.fn() → spyFn()
+- const callback = jest.fn()
++ const callback = spyFn()
+
+  // jest.spyOn() → spyOn()
+- jest.spyOn(obj, 'method')
++ spyOn(obj, 'method')
+
+  // jest.restoreAllMocks() → restoreAll()
+- jest.restoreAllMocks()
++ restoreAll()
+
+  // jest.clearAllMocks() → clearAllMocks()
+- jest.clearAllMocks()
++ clearAllMocks()
+
+  // jest.resetAllMocks() → resetAllMocks()
+- jest.resetAllMocks()
++ resetAllMocks()
+```
+
+Mock instance methods are identical:
+
+```ts
+// These work the same in Jest and Pure Test:
+spy.mockReturnValue(42)
+spy.mockReturnValueOnce(1)
+spy.mockImplementation(() => 'hi')
+spy.mockImplementationOnce(() => 'once')
+spy.mockResolvedValue({ data: 'ok' })
+spy.mockRejectedValue(new Error('fail'))
+spy.mockClear()
+spy.mockReset()
+spy.mockRestore()
+spy.mock.calls
+spy.mock.results
+spy.mock.lastCall
+```
+
+**Not supported (intentionally):**
+
+| Jest feature | Why not | Alternative |
+|-------------|---------|-------------|
+| `jest.mock('module')` | Module mocking is runtime-specific magic | Use dependency injection |
+| `jest.useFakeTimers()` | Complex, runtime-specific | Mock the timer functions you need with `spyFn()` |
+| `jest.requireActual()` | Coupled to module mocking | Not needed without module mocking |
+| Snapshot testing | File I/O, brittle, hides intent | Write explicit assertions |
+| `--coverage` | Requires V8/Istanbul integration | Use `c8` or your runtime's coverage tool |
+
+## Porting from Vitest
+
+```diff
+  // package.json
+  "scripts": {
+-   "test": "vitest run"
++   "test": "pure-test tests/"
+  }
+```
+
+```diff
+- import { describe, it, expect, vi } from 'vitest'
++ import { describe, it, expect, spyFn, spyOn, restoreAll, clearAllMocks, resetAllMocks } from '@igorjs/pure-test'
+
+  // vi.fn() → spyFn()
+- const spy = vi.fn()
++ const spy = spyFn()
+
+  // vi.spyOn() → spyOn()
+- vi.spyOn(obj, 'method')
++ spyOn(obj, 'method')
+
+  // vi.restoreAllMocks() → restoreAll()
+- vi.restoreAllMocks()
++ restoreAll()
+
+  // vi.clearAllMocks() → clearAllMocks()
+- vi.clearAllMocks()
++ clearAllMocks()
+
+  // vi.resetAllMocks() → resetAllMocks()
+- vi.resetAllMocks()
++ resetAllMocks()
+
+  // afterEach cleanup
+  afterEach(() => {
+-   vi.restoreAllMocks()
++   restoreAll()
+  })
+```
+
+Mock instance methods are identical:
+
+```ts
+// These work the same in Vitest and Pure Test:
+spy.mockReturnValue(42)
+spy.mockReturnValueOnce(1)
+spy.mockImplementation(() => 'hi')
+spy.mockImplementationOnce(() => 'once')
+spy.mockResolvedValue({ data: 'ok' })
+spy.mockResolvedValueOnce('first')
+spy.mockRejectedValue(new Error('fail'))
+spy.mockRejectedValueOnce(new Error('once'))
+spy.mockThrow(new Error('boom'))
+spy.mockThrowOnce(new Error('once'))
+spy.mockReturnThis()
+spy.mockClear()
+spy.mockReset()
+spy.mockRestore()
+spy.mockName('myFn')
+spy.getMockName()
+spy.getMockImplementation()
+spy.mock.calls
+spy.mock.results
+spy.mock.lastCall
+spy.mock.invocationCallOrder
+```
+
+**Not supported (intentionally):**
+
+| Vitest feature | Why not | Alternative |
+|-------------|---------|-------------|
+| `vi.mock('module')` | Module mocking is runtime-specific | Use dependency injection |
+| `vi.useFakeTimers()` | Complex, runtime-specific | Mock timers with `spyFn()` |
+| `vi.stubGlobal()` | Mutating globals is fragile | Pass globals as parameters |
+| `vi.hoisted()` | Transform-dependent | Not needed without transforms |
+| `--coverage` | Requires V8/Istanbul | Use `c8` or runtime coverage |
+| `vitest.config.ts` | Config file overhead | No config needed |
+
+## Why Pure Test
+
+|  | Pure Test | Jest | Vitest |
 |---|---|---|---|
 | Startup time | ~5ms | ~500ms | ~200ms |
 | Dependencies | 0 | 50+ | 30+ |
-| Node | Yes | Yes | Yes |
+| Config needed | No | Yes | Yes |
+| Node.js | Yes | Yes | Yes |
 | Deno | Yes | No | Experimental |
 | Bun | Yes | Partial | Partial |
-| Workers | Yes | No | No |
-| Config needed | No | Yes | Yes |
-| Transforms | None | babel/SWC | esbuild/SWC |
+| Workers/Browser | Yes | No | No |
+| Transforms needed | No | Yes | Yes |
+| Mock API | Vitest-compatible | Jest API | vi namespace |
 
 ## License
 
