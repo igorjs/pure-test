@@ -7,7 +7,7 @@
  *   bun tests/self-test.mjs
  */
 
-import { describe, it, expect, run, beforeAll, afterAll, beforeEach, afterEach } from "../dist/index.js";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "../dist/index.js";
 
 // ── expect.toBe ─────────────────────────────────────────────────────────────
 
@@ -271,6 +271,23 @@ describe("skip", () => {
   });
 });
 
-// ── run ─────────────────────────────────────────────────────────────────────
+// ── concurrent ──────────────────────────────────────────────────────────────
 
-await run();
+describe.concurrent("concurrent tests", () => {
+  it("runs in parallel A", async () => {
+    await new Promise(r => setTimeout(r, 10));
+    expect(true).toBeTruthy();
+  });
+
+  it("runs in parallel B", async () => {
+    await new Promise(r => setTimeout(r, 10));
+    expect(true).toBeTruthy();
+  });
+
+  it("runs in parallel C", async () => {
+    await new Promise(r => setTimeout(r, 10));
+    expect(true).toBeTruthy();
+  });
+});
+
+// No run() needed - auto-runs after all describe/it calls complete

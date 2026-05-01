@@ -18,6 +18,7 @@ export interface Suite {
   readonly afterAll: Array<() => void | Promise<void>>;
   readonly beforeEach: Array<() => void | Promise<void>>;
   readonly afterEach: Array<() => void | Promise<void>>;
+  readonly concurrent: boolean;
 }
 
 /** Result of running a single test. */

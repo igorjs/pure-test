@@ -6,24 +6,33 @@
  *
  * @example
  * ```ts
- * import { describe, it, expect, run } from '@igorjs/pure-test'
+ * import { describe, it, expect } from '@igorjs/pure-test'
  *
  * describe('math', () => {
  *   it('adds numbers', () => {
  *     expect(1 + 1).toBe(2)
  *   })
- *
- *   it('works async', async () => {
- *     const result = await Promise.resolve(42)
- *     expect(result).toBe(42)
- *   })
  * })
  *
- * await run()
+ * // Auto-runs after all describe/it calls complete. No run() needed.
  * ```
  */
 
 export { expect, AssertionError } from "./expect.js";
 export type { Expectation } from "./expect.js";
-export { describe, it, test, beforeAll, afterAll, beforeEach, afterEach, run, reset } from "./runner.js";
+export {
+  describe,
+  it,
+  test,
+  beforeAll,
+  afterAll,
+  beforeEach,
+  afterEach,
+  run,
+  reset,
+  setCLIMode,
+  setReporter,
+} from "./runner.js";
+export { tap, spec, json, minimal, getReporter } from "./reporters.js";
+export type { Reporter } from "./reporters.js";
 export type { Test, Suite, TestResult, RunSummary } from "./types.js";

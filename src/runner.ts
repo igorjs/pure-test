@@ -4,6 +4,7 @@
  * No runtime-specific imports. Uses only globalThis APIs.
  */
 
+import { getReporter, type Reporter } from "./reporters.js";
 import type { RunSummary, Suite, Test, TestResult } from "./types.js";
 
 // ── Global state ────────────────────────────────────────────────────────────
@@ -16,9 +17,39 @@ const rootSuite: Suite = {
   afterAll: [],
   beforeEach: [],
   afterEach: [],
+  concurrent: false,
 };
 
 let currentSuite: Suite = rootSuite;
+let autoRunScheduled = false;
+let cliMode = false;
+let activeReporter: Reporter | undefined;
+
+/** Mark that run() will be called externally (by CLI). Disables auto-run. */
+export const setCLIMode = (): void => {
+  cliMode = true;
+};
+
+/** Set the output reporter. Defaults to 'spec'. */
+export const setReporter = (nameOrReporter: string | Reporter): void => {
+  activeReporter =
+    typeof nameOrReporter === "string" ? getReporter(nameOrReporter) : nameOrReporter;
+};
+
+// ── Auto-run scheduling ─────────────────────────────────────────────────────
+
+/**
+ * Schedule run() to fire after all synchronous module code completes.
+ * Uses setTimeout(0) to defer to after all top-level describe/it calls.
+ * Only fires in direct-execution mode, not when CLI controls execution.
+ */
+const scheduleAutoRun = (): void => {
+  if (autoRunScheduled || cliMode) return;
+  autoRunScheduled = true;
+  setTimeout(() => {
+    run();
+  }, 0);
+};
 
 // ── Registration API ────────────────────────────────────────────────────────
 
@@ -32,17 +63,20 @@ export const describe = (name: string, fn: () => void): void => {
     afterAll: [],
     beforeEach: [],
     afterEach: [],
+    concurrent: false,
   };
   currentSuite.suites.push(suite);
   const parent = currentSuite;
   currentSuite = suite;
   fn();
   currentSuite = parent;
+  scheduleAutoRun();
 };
 
 /** Define a test case. */
 export const it = (name: string, fn: () => void | Promise<void>): void => {
   currentSuite.tests.push({ name, fn, skip: false });
+  scheduleAutoRun();
 };
 
 /** Alias for it. */
@@ -51,6 +85,7 @@ export const test = it;
 /** Skip a test. */
 it.skip = (name: string, _fn: () => void | Promise<void>): void => {
   currentSuite.tests.push({ name, fn: () => {}, skip: true });
+  scheduleAutoRun();
 };
 
 /** Skip a suite. */
@@ -63,8 +98,42 @@ describe.skip = (name: string, _fn: () => void): void => {
     afterAll: [],
     beforeEach: [],
     afterEach: [],
+    concurrent: false,
   };
   currentSuite.suites.push(suite);
+  scheduleAutoRun();
+};
+
+/**
+ * Define a concurrent test suite. All tests in this suite run in parallel
+ * via Promise.all. Use when tests are independent and don't share mutable state.
+ *
+ * @example
+ * ```ts
+ * describe.concurrent('crypto operations', () => {
+ *   it('hash', async () => { ... })   // runs in parallel
+ *   it('sign', async () => { ... })   // runs in parallel
+ *   it('verify', async () => { ... }) // runs in parallel
+ * })
+ * ```
+ */
+describe.concurrent = (name: string, fn: () => void): void => {
+  const suite: Suite = {
+    name,
+    tests: [],
+    suites: [],
+    beforeAll: [],
+    afterAll: [],
+    beforeEach: [],
+    afterEach: [],
+    concurrent: true,
+  };
+  currentSuite.suites.push(suite);
+  const parent = currentSuite;
+  currentSuite = suite;
+  fn();
+  currentSuite = parent;
+  scheduleAutoRun();
 };
 
 /** Register a before-all hook for the current suite. */
@@ -140,12 +209,17 @@ const runSuite = async (
     await hook();
   }
 
-  // Run tests in this suite
-  for (const t of suite.tests) {
-    results.push(await runTest(t, suitePath, allBeforeEach, allAfterEach));
+  // Run tests: concurrent or sequential
+  if (suite.concurrent) {
+    const promises = suite.tests.map((t) => runTest(t, suitePath, allBeforeEach, allAfterEach));
+    results.push(...(await Promise.all(promises)));
+  } else {
+    for (const t of suite.tests) {
+      results.push(await runTest(t, suitePath, allBeforeEach, allAfterEach));
+    }
   }
 
-  // Run nested suites
+  // Run nested suites (always sequential: suite ordering should be predictable)
   for (const child of suite.suites) {
     const childResults = await runSuite(child, suitePath, allBeforeEach, allAfterEach);
     results.push(...childResults);
@@ -159,42 +233,15 @@ const runSuite = async (
   return results;
 };
 
-// ── Reporter ────────────────────────────────────────────────────────────────
-
-const formatResult = (r: TestResult, index: number): string => {
-  const path = r.suite.length > 0 ? `${r.suite.join(" > ")} > ` : "";
-  if (r.status === "skip") return `ok ${index} - ${path}${r.name} # SKIP`;
-  if (r.status === "pass") return `ok ${index} - ${path}${r.name}`;
-
-  const errMsg = r.error instanceof Error ? r.error.message : String(r.error);
-  return `not ok ${index} - ${path}${r.name}\n  ---\n  error: ${errMsg}\n  ...`;
-};
-
-const report = (summary: RunSummary): string => {
-  const lines: string[] = [];
-  lines.push(`TAP version 14`);
-  lines.push(`1..${summary.results.length}`);
-
-  for (let i = 0; i < summary.results.length; i++) {
-    lines.push(formatResult(summary.results[i]!, i + 1));
-  }
-
-  lines.push("");
-  lines.push(`# tests ${summary.results.length}`);
-  lines.push(`# pass ${summary.passed}`);
-  lines.push(`# fail ${summary.failed}`);
-  lines.push(`# skip ${summary.skipped}`);
-  lines.push(`# duration ${summary.duration.toFixed(0)}ms`);
-
-  return lines.join("\n");
-};
-
 // ── Public run function ─────────────────────────────────────────────────────
 
 /**
  * Run all registered tests and print TAP output.
  *
- * Exits with code 1 if any test fails (Node/Deno/Bun).
+ * You usually don't need to call this directly:
+ * - In direct mode (`node test.mjs`), it auto-runs after all describe/it calls.
+ * - Via CLI (`pure-test tests/`), the CLI calls it after importing all files.
+ *
  * Returns the summary for programmatic use.
  */
 export const run = async (): Promise<RunSummary> => {
@@ -209,7 +256,8 @@ export const run = async (): Promise<RunSummary> => {
     duration: now() - start,
   };
 
-  console.log(report(summary));
+  const reporter = activeReporter ?? getReporter("spec");
+  console.log(reporter.format(summary));
 
   // Exit with failure code if any tests failed
   if (summary.failed > 0) {
@@ -238,4 +286,5 @@ export const reset = (): void => {
   rootSuite.afterAll.length = 0;
   rootSuite.beforeEach.length = 0;
   rootSuite.afterEach.length = 0;
+  autoRunScheduled = false;
 };
