@@ -7,7 +7,7 @@
  *   bun tests/self-test.mjs
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, fn, spyOn, mock, mockDeep, restoreAll, clearAllMocks, resetAllMocks } from "../dist/index.js";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, spyFn, spyOn, mock, mockDeep, restoreAll, clearAllMocks, resetAllMocks } from "../dist/index.js";
 
 // ── expect.toBe ─────────────────────────────────────────────────────────────
 
@@ -290,11 +290,11 @@ describe.concurrent("concurrent tests", () => {
   });
 });
 
-// ── fn() — Vitest-compatible mock function ──────────────────────────────────
+// ── spyFn() — Vitest-compatible mock function ──────────────────────────────────
 
-describe("fn()", () => {
+describe("spyFn()", () => {
   it("tracks calls via mock.calls", () => {
-    const spy = fn();
+    const spy = spyFn();
     spy(1, 2);
     spy("a");
     expect(spy.mock.calls).toHaveLength(2);
@@ -303,24 +303,24 @@ describe("fn()", () => {
   });
 
   it("tracks results via mock.results", () => {
-    const spy = fn().mockReturnValue(42);
+    const spy = spyFn().mockReturnValue(42);
     spy();
     expect(spy.mock.results[0].type).toBe("return");
     expect(spy.mock.results[0].value).toBe(42);
   });
 
   it("returns undefined by default", () => {
-    expect(fn()()).toBeUndefined();
+    expect(spyFn()()).toBeUndefined();
   });
 
   it("mockReturnValue sets fixed return", () => {
-    const spy = fn().mockReturnValue(42);
+    const spy = spyFn().mockReturnValue(42);
     expect(spy()).toBe(42);
     expect(spy()).toBe(42);
   });
 
   it("mockReturnValueOnce chains one-time returns", () => {
-    const spy = fn()
+    const spy = spyFn()
       .mockReturnValueOnce(1)
       .mockReturnValueOnce(2)
       .mockReturnValueOnce(3);
@@ -331,12 +331,12 @@ describe("fn()", () => {
   });
 
   it("mockImplementation sets custom behavior", () => {
-    const spy = fn().mockImplementation((a, b) => a + b);
+    const spy = spyFn().mockImplementation((a, b) => a + b);
     expect(spy(2, 3)).toBe(5);
   });
 
   it("mockImplementationOnce queues one-time impl", () => {
-    const spy = fn()
+    const spy = spyFn()
       .mockImplementation(() => "default")
       .mockImplementationOnce(() => "first")
       .mockImplementationOnce(() => "second");
@@ -346,12 +346,12 @@ describe("fn()", () => {
   });
 
   it("mockResolvedValue returns resolved promise", async () => {
-    const spy = fn().mockResolvedValue(42);
+    const spy = spyFn().mockResolvedValue(42);
     expect(await spy()).toBe(42);
   });
 
   it("mockResolvedValueOnce chains async returns", async () => {
-    const spy = fn()
+    const spy = spyFn()
       .mockResolvedValueOnce("a")
       .mockResolvedValueOnce("b");
     expect(await spy()).toBe("a");
@@ -359,7 +359,7 @@ describe("fn()", () => {
   });
 
   it("mockRejectedValue returns rejected promise", async () => {
-    const spy = fn().mockRejectedValue(new Error("fail"));
+    const spy = spyFn().mockRejectedValue(new Error("fail"));
     try {
       await spy();
       expect(true).toBe(false); // should not reach
@@ -369,13 +369,13 @@ describe("fn()", () => {
   });
 
   it("mockThrow throws on every call", () => {
-    const spy = fn().mockThrow(new Error("boom"));
+    const spy = spyFn().mockThrow(new Error("boom"));
     expect(() => spy()).toThrow("boom");
     expect(spy.mock.calls).toHaveLength(1);
   });
 
   it("mockThrowOnce throws once then normal", () => {
-    const spy = fn()
+    const spy = spyFn()
       .mockReturnValue("ok")
       .mockThrowOnce(new Error("once"));
     expect(() => spy()).toThrow("once");
@@ -383,13 +383,13 @@ describe("fn()", () => {
   });
 
   it("mockReturnThis returns this context", () => {
-    const spy = fn().mockReturnThis();
+    const spy = spyFn().mockReturnThis();
     const obj = { method: spy };
     expect(obj.method()).toBe(obj);
   });
 
   it("mockClear clears history, keeps behavior", () => {
-    const spy = fn().mockReturnValue(1);
+    const spy = spyFn().mockReturnValue(1);
     spy();
     spy();
     spy.mockClear();
@@ -398,7 +398,7 @@ describe("fn()", () => {
   });
 
   it("mockReset clears everything", () => {
-    const spy = fn().mockReturnValue(99);
+    const spy = spyFn().mockReturnValue(99);
     spy();
     spy.mockReset();
     expect(spy.mock.calls).toHaveLength(0);
@@ -406,18 +406,18 @@ describe("fn()", () => {
   });
 
   it("mockName and getMockName", () => {
-    const spy = fn().mockName("myMock");
+    const spy = spyFn().mockName("myMock");
     expect(spy.getMockName()).toBe("myMock");
   });
 
   it("getMockImplementation returns current impl", () => {
     const impl = (x) => x * 2;
-    const spy = fn().mockImplementation(impl);
+    const spy = spyFn().mockImplementation(impl);
     expect(spy.getMockImplementation()).toBe(impl);
   });
 
   it("wraps an initial implementation", () => {
-    const spy = fn((x) => x * 2);
+    const spy = spyFn((x) => x * 2);
     expect(spy(5)).toBe(10);
     expect(spy.mock.calls).toHaveLength(1);
   });

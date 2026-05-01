@@ -94,11 +94,11 @@ let globalCallOrder = 0;
 
 // ── fn() ────────────────────────────────────────────────────────────────────
 
-/** Create a mock function. Vitest-compatible API. */
-export const fn = <T extends (...args: readonly unknown[]) => unknown = (...args: readonly unknown[]) => unknown>(
+/** Create a standalone spy function. */
+export const spyFn = <T extends (...args: readonly unknown[]) => unknown = (...args: readonly unknown[]) => unknown>(
   initialImpl?: T,
 ): MockFn<T> => {
-  let name = "vi.fn()";
+  let name = "spyFn()";
   let impl: T | undefined = initialImpl;
   const implOnceQueue: T[] = [];
   const returnOnceQueue: ReturnType<T>[] = [];
@@ -246,7 +246,7 @@ export const spyOn = <T extends Record<string, unknown>>(
     throw new Error(`Cannot spy on ${method}: not a function`);
   }
 
-  const spy = fn((...args: readonly unknown[]) =>
+  const spy = spyFn((...args: readonly unknown[]) =>
     (original as (...a: readonly unknown[]) => unknown).apply(target, [...args]),
   );
   spy.mockName(`spy.${method}`);
