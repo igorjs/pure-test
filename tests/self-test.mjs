@@ -7,7 +7,7 @@
  *   bun tests/self-test.mjs
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from "../dist/index.js";
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, fn, spyOn, mock, mockDeep, restoreAll } from "../dist/index.js";
 
 // ── expect.toBe ─────────────────────────────────────────────────────────────
 
@@ -287,6 +287,188 @@ describe.concurrent("concurrent tests", () => {
   it("runs in parallel C", async () => {
     await new Promise(r => setTimeout(r, 10));
     expect(true).toBeTruthy();
+  });
+});
+
+// ── fn() mock function ──────────────────────────────────────────────────────
+
+describe("fn()", () => {
+  it("tracks calls", () => {
+    const spy = fn();
+    spy(1, 2);
+    spy("a");
+    expect(spy.callCount).toBe(2);
+    expect(spy.called).toBeTruthy();
+    expect(spy.lastCall).toEqual(["a"]);
+  });
+
+  it("returns undefined by default", () => {
+    const spy = fn();
+    expect(spy()).toBeUndefined();
+  });
+
+  it("returns a set value", () => {
+    const spy = fn().returns(42);
+    expect(spy()).toBe(42);
+    expect(spy()).toBe(42);
+  });
+
+  it("uses custom implementation", () => {
+    const spy = fn().impl((a, b) => a + b);
+    expect(spy(2, 3)).toBe(5);
+  });
+
+  it("returns values in sequence", () => {
+    const spy = fn().returnsOnce(1, 2, 3);
+    expect(spy()).toBe(1);
+    expect(spy()).toBe(2);
+    expect(spy()).toBe(3);
+    expect(spy()).toBe(3); // repeats last
+  });
+
+  it("throws on call", () => {
+    const spy = fn().throws(new Error("boom"));
+    expect(() => spy()).toThrow("boom");
+    expect(spy.callCount).toBe(1);
+  });
+
+  it("resets calls", () => {
+    const spy = fn().returns(1);
+    spy();
+    spy();
+    spy.resetCalls();
+    expect(spy.callCount).toBe(0);
+    expect(spy()).toBe(1); // behavior preserved
+  });
+
+  it("resets everything", () => {
+    const spy = fn().returns(99);
+    spy();
+    spy.resetAll();
+    expect(spy.callCount).toBe(0);
+    expect(spy()).toBeUndefined(); // behavior reset
+  });
+
+  it("wraps an initial implementation", () => {
+    const spy = fn((x) => x * 2);
+    expect(spy(5)).toBe(10);
+    expect(spy.callCount).toBe(1);
+  });
+});
+
+// ── spyOn() ─────────────────────────────────────────────────────────────────
+
+describe("spyOn()", () => {
+  afterEach(() => restoreAll());
+
+  it("spies on a method and calls through", () => {
+    const obj = { greet: (name) => `hello ${name}` };
+    const spy = spyOn(obj, "greet");
+    expect(obj.greet("world")).toBe("hello world");
+    expect(spy.callCount).toBe(1);
+    expect(spy.lastCall).toEqual(["world"]);
+  });
+
+  it("can override return value", () => {
+    const obj = { getValue: () => "real" };
+    spyOn(obj, "getValue").returns("mocked");
+    expect(obj.getValue()).toBe("mocked");
+  });
+
+  it("restores original on restoreAll", () => {
+    const obj = { getValue: () => "real" };
+    spyOn(obj, "getValue").returns("mocked");
+    expect(obj.getValue()).toBe("mocked");
+    restoreAll();
+    expect(obj.getValue()).toBe("real");
+  });
+
+  it("throws if target is not a function", () => {
+    const obj = { value: 42 };
+    expect(() => spyOn(obj, "value")).toThrow("not a function");
+  });
+});
+
+// ── mock() ──────────────────────────────────────────────────────────────────
+
+describe("mock()", () => {
+  afterEach(() => restoreAll());
+
+  it("replaces all methods with spies", () => {
+    const obj = {
+      a: () => 1,
+      b: () => 2,
+      notAFn: "hello",
+    };
+    mock(obj);
+    obj.a();
+    obj.b();
+    expect(obj.a.callCount).toBe(1);
+    expect(obj.b.callCount).toBe(1);
+    expect(obj.notAFn).toBe("hello"); // non-functions untouched
+  });
+});
+
+// ── mockDeep() ──────────────────────────────────────────────────────────────
+
+describe("mockDeep()", () => {
+  afterEach(() => restoreAll());
+
+  it("mocks nested methods recursively", () => {
+    const db = {
+      users: {
+        find: (id) => ({ id, name: "Alice" }),
+        create: (data) => ({ id: 1, ...data }),
+      },
+      posts: {
+        list: () => [],
+      },
+    };
+
+    mockDeep(db);
+
+    db.users.find(1);
+    db.users.create({ name: "Bob" });
+    db.posts.list();
+
+    expect(db.users.find.callCount).toBe(1);
+    expect(db.users.find.lastCall).toEqual([1]);
+    expect(db.users.create.callCount).toBe(1);
+    expect(db.posts.list.callCount).toBe(1);
+  });
+
+  it("allows overriding nested return values", () => {
+    const service = {
+      auth: {
+        login: () => null,
+      },
+    };
+
+    mockDeep(service);
+    service.auth.login.returns({ token: "abc" });
+
+    expect(service.auth.login()).toEqual({ token: "abc" });
+  });
+
+  it("handles circular references", () => {
+    const obj = { nested: {} };
+    obj.nested.parent = obj;
+    expect(() => mockDeep(obj)).not.toThrow();
+  });
+
+  it("restores everything on restoreAll", () => {
+    const service = {
+      db: {
+        query: () => "real result",
+      },
+    };
+
+    mockDeep(service);
+    service.db.query.returns("mocked");
+    expect(service.db.query()).toBe("mocked");
+
+    restoreAll();
+    expect(service.db.query()).toBe("real result");
   });
 });
 
