@@ -1,3 +1,5 @@
+// Copyright 2026 igorjs. SPDX-License-Identifier: Apache-2.0
+
 /**
  * Assertion library. No runtime-specific imports.
  *
