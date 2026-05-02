@@ -418,8 +418,86 @@ Mock instance methods (`mockReturnValue`, `mockImplementation`, `mock.calls`, et
 | Deno | Yes | No | Experimental |
 | Bun | Yes | Partial | Partial |
 | Workers/Browser | Yes | No | No |
-| Transforms needed | No | Yes | Yes |
-| Mock API | Vitest-compatible | Jest API | vi namespace |
+| Transforms needed | No | Yes (babel/SWC) | Yes (esbuild/SWC) |
+| Mock API | Compatible | Jest API | vi namespace |
+
+## Feature Comparison
+
+### What Pure Test supports
+
+These features work the same way across all three frameworks. If you're using them in Jest or Vitest, they'll work in Pure Test with minimal changes.
+
+| Feature | Pure Test | Jest | Vitest |
+|---------|-----------|------|--------|
+| `describe` / `it` / `test` | Yes | Yes | Yes |
+| `describe.concurrent` | Yes | No | Yes |
+| `describe.skip` / `it.skip` | Yes | Yes | Yes |
+| `beforeAll` / `afterAll` | Yes | Yes | Yes |
+| `beforeEach` / `afterEach` | Yes | Yes | Yes |
+| `expect().toBe()` | Yes | Yes | Yes |
+| `expect().toEqual()` | Yes | Yes | Yes |
+| `expect().toBeTruthy/Falsy()` | Yes | Yes | Yes |
+| `expect().toBeNull/Undefined/Defined()` | Yes | Yes | Yes |
+| `expect().toBeInstanceOf()` | Yes | Yes | Yes |
+| `expect().toBeGreaterThan()` and friends | Yes | Yes | Yes |
+| `expect().toContain()` | Yes | Yes | Yes |
+| `expect().toMatch()` | Yes | Yes | Yes |
+| `expect().toHaveLength()` | Yes | Yes | Yes |
+| `expect().toThrow()` | Yes | Yes | Yes |
+| `expect().not.*` | Yes | Yes | Yes |
+| `spyFn()` / `fn()` / `vi.fn()` | Yes | Yes | Yes |
+| `spyOn()` | Yes | Yes | Yes |
+| `mockReturnValue` / `mockReturnValueOnce` | Yes | Yes | Yes |
+| `mockImplementation` / `mockImplementationOnce` | Yes | Yes | Yes |
+| `mockResolvedValue` / `mockRejectedValue` | Yes | Yes | Yes |
+| `mockThrow` / `mockThrowOnce` | Yes | No | Yes (v4.1+) |
+| `mockReturnThis` | Yes | Yes | Yes |
+| `mockClear` / `mockReset` / `mockRestore` | Yes | Yes | Yes |
+| `mock.calls` / `mock.results` / `mock.lastCall` | Yes | Yes | Yes |
+| `mockDeep()` | Yes | Via jest-mock-extended | No |
+| Multiple reporters (TAP, JSON, spec, minimal) | Yes | Via packages | Via packages |
+| Custom reporters | Yes | Via packages | Via packages |
+| Async test support | Yes | Yes | Yes |
+
+### What Pure Test doesn't support (yet)
+
+Features we plan to add. They're runtime-agnostic and practical.
+
+| Feature | Jest | Vitest | Why we want it |
+|---------|------|--------|---------------|
+| `it.only` / `describe.only` | Yes | Yes | Focus on a single test during debugging |
+| `it.todo` | Yes | Yes | Document planned tests without failing |
+| `it.each` (parameterised tests) | Yes | Yes | Reduce duplication for data-driven tests |
+| `expect().toHaveBeenCalled()` | Yes | Yes | Cleaner spy assertions than checking `mock.calls.length` |
+| `expect().toHaveBeenCalledWith()` | Yes | Yes | Assert specific call arguments |
+| `expect().toHaveBeenCalledTimes()` | Yes | Yes | Assert exact call count |
+| `expect().toMatchObject()` | Yes | Yes | Partial object matching for flexible assertions |
+| `expect().toHaveProperty()` | Yes | Yes | Assert nested property existence and value |
+| `expect().toStrictEqual()` | Yes | Yes | Equality that checks `undefined` properties and object types |
+| `expect.any()` / asymmetric matchers | Yes | Yes | Match by type instead of value: `expect.any(Number)` |
+| Getter/setter spying | Yes | Yes | `spyOn(obj, 'prop', 'get')` for property access |
+| Test timeout | Yes | Yes | `it('name', fn, 5000)` to fail slow tests |
+| `--grep` (test name filtering) | Yes | Yes | Run only tests matching a pattern |
+| Test retry | No | Yes | Re-run flaky tests N times before failing |
+
+### What Pure Test will never support
+
+These features are intentionally excluded. Each one conflicts with our philosophy of zero dependencies, no transforms, no magic, and cross-runtime compatibility.
+
+| Feature | Jest | Vitest | Why we skip it |
+|---------|------|--------|---------------|
+| Module mocking (`jest.mock` / `vi.mock`) | Yes | Yes | **Requires transform hooks** that intercept `import` statements at compile time. This is runtime-specific magic: Jest uses babel, Vitest uses Vite. There's no cross-runtime way to do it. Use dependency injection instead: pass dependencies as parameters, mock at the call site. |
+| Fake timers (`jest.useFakeTimers` / `vi.useFakeTimers`) | Yes | Yes | **Monkey-patches global `setTimeout`, `setInterval`, `Date`** at the runtime level. Different runtimes have different timer implementations (Node uses libuv, Deno uses Tokio, Bun uses its own). Mock specific timer functions with `spyFn()` when needed. |
+| Global stubbing (`vi.stubGlobal` / `vi.stubEnv`) | No | Yes | **Mutating globals is fragile** and leaks between tests. Pass globals as function parameters instead. |
+| Hoisted mocks (`vi.hoisted`) | No | Yes | **Only works with Vite's transform pipeline.** The concept doesn't exist without a bundler. |
+| Snapshot testing | Yes | Yes | **Requires file I/O** to read/write `.snap` files, which isn't available in Workers or browsers. Snapshots are also brittle: they pass when they shouldn't (accepting wrong output) and fail when they shouldn't (formatting changes). Write explicit assertions that document what you expect. |
+| Coverage (`--coverage`) | Yes | Yes | **Requires V8 or Istanbul instrumentation** which is deeply runtime-specific. Use [`c8`](https://github.com/bcoe/c8) for Node, `deno coverage` for Deno, or `bun test --coverage` for Bun. Separating coverage from the test runner is better architecture. |
+| Watch mode | Yes | Yes | **Requires file system watchers** (FSEvents, inotify) which are runtime-specific. Use [`watchexec`](https://github.com/watchexec/watchexec) or `nodemon` externally: `watchexec -e mjs -- pure-test tests/`. Unix philosophy: do one thing well. |
+| Browser environments (jsdom, happy-dom) | Yes | Yes | **Simulated DOM is a Node-only concept.** Pure Test runs in real browsers via Playwright. Test browser code in a real browser, not a simulation. |
+| Worker/thread isolation | Yes | Yes | **Costs ~50ms per file** in process creation overhead. For 100 test files, that's 5 seconds before any test runs. Use `beforeEach`/`afterEach` for test isolation. If your tests need process isolation, your tests have a design problem. |
+| `expect.extend()` (custom matchers) | Yes | Yes | **Adds API surface and complexity.** Write helper functions that call `expect()` internally. They compose better and are easier to debug. |
+| Config files | Yes (`jest.config`) | Yes (`vitest.config`) | **Config parsing adds startup overhead** and a new thing to learn. CLI args cover everything. If you need project-specific settings, use npm scripts. |
+| Benchmark mode | No | Yes (`bench()`) | **Benchmarking is a different tool.** Use [mitata](https://github.com/evanwashere/mitata) or [tinybench](https://github.com/tinylibs/tinybench). Mixing tests and benchmarks in one runner conflates two concerns. |
 
 ## License
 
