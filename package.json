@@ -19,13 +19,15 @@
     "bin"
   ],
   "scripts": {
-    "build": "rm -rf dist && tsgo",
+    "check": "tsgo --noEmit",
     "lint": "biome check",
     "lint:fix": "biome check --write",
-    "check": "tsgo --noEmit",
+    "format": "biome format --write",
+    "build": "node scripts/build.mjs",
     "test": "node tests/self-test.mjs",
-    "test:deno": "deno run --allow-all tests/self-test.mjs",
-    "test:all": "node tests/self-test.mjs && deno run --allow-all tests/self-test.mjs"
+    "test:ci": "node scripts/test-ci.mjs",
+    "release": "node scripts/release.mjs",
+    "prepublishOnly": "node scripts/prepublish.mjs"
   },
   "keywords": [
     "test",
