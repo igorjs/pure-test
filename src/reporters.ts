@@ -26,7 +26,7 @@ const fullName = (r: TestResult): string => {
 
 export const tap: Reporter = {
   name: "tap",
-  format: (summary) => {
+  format: summary => {
     const lines: string[] = [];
     lines.push(`1..${summary.results.length}`);
 
@@ -60,7 +60,7 @@ export const tap: Reporter = {
 
 export const spec: Reporter = {
   name: "spec",
-  format: (summary) => {
+  format: summary => {
     const lines: string[] = [];
     let currentSuite: string[] = [];
 
@@ -99,7 +99,7 @@ export const spec: Reporter = {
 
 export const json: Reporter = {
   name: "json",
-  format: (summary) =>
+  format: summary =>
     JSON.stringify(
       {
         tests: summary.results.length,
@@ -107,7 +107,7 @@ export const json: Reporter = {
         failed: summary.failed,
         skipped: summary.skipped,
         duration: Math.round(summary.duration),
-        results: summary.results.map((r) => ({
+        results: summary.results.map(r => ({
           name: fullName(r),
           status: r.status,
           duration: Math.round(r.duration),
@@ -123,14 +123,14 @@ export const json: Reporter = {
 
 export const minimal: Reporter = {
   name: "minimal",
-  format: (summary) => {
+  format: summary => {
     const dots = summary.results
-      .map((r) => (r.status === "pass" ? "." : r.status === "skip" ? "s" : "F"))
+      .map(r => (r.status === "pass" ? "." : r.status === "skip" ? "s" : "F"))
       .join("");
     const lines = [dots, ""];
 
     // Show failures
-    const failures = summary.results.filter((r) => r.status === "fail");
+    const failures = summary.results.filter(r => r.status === "fail");
     for (const f of failures) {
       lines.push(`FAIL: ${fullName(f)}`);
       lines.push(`  ${errMessage(f)}`);

@@ -2,14 +2,14 @@
  * Automated release script.
  *
  * Generates a changelog from conventional commits, bumps the version in
- * package.json, commits, tags, pushes, and creates a GitHub release with
- * the changelog as release notes.
+ * package.json and jsr.json, commits, tags, pushes, and creates a GitHub
+ * release with the changelog as release notes.
  *
  * Usage:
- *   node scripts/release.mjs patch    # 0.1.0 -> 0.1.1
- *   node scripts/release.mjs minor    # 0.1.0 -> 0.2.0
- *   node scripts/release.mjs major    # 0.1.0 -> 1.0.0
- *   node scripts/release.mjs 0.2.0    # explicit version
+ *   node scripts/release.mjs patch    # 0.3.1 -> 0.3.2
+ *   node scripts/release.mjs minor    # 0.3.1 -> 0.4.0
+ *   node scripts/release.mjs major    # 0.3.1 -> 1.0.0
+ *   node scripts/release.mjs 0.4.0    # explicit version
  *   node scripts/release.mjs minor --yes  # skip confirmation prompt
  *
  * Requires: gh CLI (authenticated), git signing configured.
@@ -58,11 +58,18 @@ try {
   die("GitHub CLI (gh) is not installed or not in PATH.");
 }
 
-const ciStatus = run(
-  "gh run list --branch main --limit 1 --json conclusion --jq '.[0].conclusion'",
-);
-if (ciStatus !== "success") {
-  die(`Last CI run on main is not green (status: ${ciStatus}). Fix CI before releasing.`);
+// Wait for any in-progress CI runs to finish, then check result
+const ciCheckCmd = "gh run list --branch main --workflow ci.yml --limit 1 --json status,conclusion --jq '.[0]'";
+let ciRun = JSON.parse(run(ciCheckCmd));
+if (ciRun.status !== "completed") {
+  log(`CI run is ${ciRun.status}. Waiting for it to finish...`);
+  while (ciRun.status !== "completed") {
+    run("sleep 10");
+    ciRun = JSON.parse(run(ciCheckCmd));
+  }
+}
+if (ciRun.conclusion !== "success") {
+  die(`Last CI run on main failed (conclusion: ${ciRun.conclusion}). Fix CI before releasing.`);
 }
 
 if (skipTestCi) {
@@ -77,6 +84,7 @@ if (skipTestCi) {
 
   log("Verifying npm publish (dry run)...");
   try {
+    // Strip pnpm-injected npm_config_ env vars that npm doesn't recognise
     const cleanEnv = Object.fromEntries(
       Object.entries(process.env).filter(([k]) => !k.startsWith("npm_")),
     );
@@ -223,8 +231,9 @@ for (const cat of CHANGELOG_CATEGORIES) {
   keepSections.push(`### ${cat.label}\n${entries.join("\n")}`);
 }
 
-const changelogEntry =
-  keepSections.length > 0 ? `## [${newVersion}] - ${today}\n\n${keepSections.join("\n\n")}` : null;
+let changelogEntry = keepSections.length > 0
+  ? `## [${newVersion}] - ${today}\n\n${keepSections.join("\n\n")}`
+  : null;
 
 log("\n--- GitHub Release Notes ---");
 log(changelog);
@@ -256,15 +265,35 @@ log("\nBumping version...");
 pkg.version = newVersion;
 writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
 
+const jsr = JSON.parse(readFileSync("jsr.json", "utf8"));
+jsr.version = newVersion;
+writeFileSync("jsr.json", JSON.stringify(jsr, null, 2) + "\n");
+
+// -- Update test badge in README ----------------------------------------------
+
+try {
+  const readme = readFileSync("README.md", "utf8");
+  const testCount = run("pnpm run build > /dev/null 2>&1 && pnpm test 2>&1 | grep -oP '(?<=pass )\\d+'");
+  if (testCount) {
+    const updated = readme.replace(
+      /tests-\d+_passing/,
+      `tests-${testCount}_passing`,
+    );
+    if (updated !== readme) {
+      writeFileSync("README.md", updated);
+      log(`Updated test badge: ${testCount} passing`);
+    }
+  }
+} catch {
+  // Non-critical: skip if test count extraction fails
+}
+
 // -- Update SECURITY.md supported version -------------------------------------
 
 try {
   const security = readFileSync("SECURITY.md", "utf8");
   const updated = security
-    .replace(
-      /\| [\d.]+\.x \(latest\)\s*\| Yes\s*\|/,
-      `| ${newVersion.replace(/\.\d+$/, ".x")} (latest) | Yes |`,
-    )
+    .replace(/\| [\d.]+\.x \(latest\)\s*\| Yes\s*\|/, `| ${newVersion.replace(/\.\d+$/, ".x")} (latest) | Yes |`)
     .replace(/\| < [\d.]+\s*\| No\s*\|/, `| < ${newVersion.replace(/\.\d+$/, "")} | No |`);
   if (updated !== security) {
     writeFileSync("SECURITY.md", updated);
@@ -326,18 +355,16 @@ if (changelogEntry) {
 // -- Commit, tag, push --------------------------------------------------------
 
 log("Committing...");
-run("git add package.json SECURITY.md CHANGELOG.md");
+run("git add package.json jsr.json README.md SECURITY.md CHANGELOG.md");
 const commitMsg = `chore: bump to ${newVersion}\n\n${changelog}`;
 writeFileSync(".git/.release-msg.tmp", commitMsg);
-run("git commit --signoff --gpg-sign --file .git/.release-msg.tmp");
+const canSign = !!run("git config user.signingkey || true");
+const signFlag = canSign ? "--gpg-sign" : "";
+run(`git commit --signoff ${signFlag} --file .git/.release-msg.tmp`);
 run("rm -f .git/.release-msg.tmp");
 
 log("Tagging...");
-run(
-  canSign
-    ? `git tag -s v${newVersion} -m "v${newVersion}"`
-    : `git tag v${newVersion} -m "v${newVersion}"`,
-);
+run(canSign ? `git tag -s v${newVersion} -m "v${newVersion}"` : `git tag v${newVersion} -m "v${newVersion}"`);
 
 log("Pushing...");
 run("git push origin HEAD:refs/heads/main");
@@ -347,9 +374,7 @@ run(`git push origin v${newVersion}`);
 
 log("Creating GitHub release...");
 writeFileSync(".git/.release-notes.tmp", changelog);
-run(
-  `gh release create v${newVersion} --title "v${newVersion}" --notes-file .git/.release-notes.tmp`,
-);
+run(`gh release create v${newVersion} --title "v${newVersion}" --notes-file .git/.release-notes.tmp`);
 run("rm -f .git/.release-notes.tmp");
 
 // -- Clean up filter-branch refs if any ---------------------------------------

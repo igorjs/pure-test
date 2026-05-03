@@ -18,6 +18,11 @@
     "dist",
     "bin"
   ],
+  "sideEffects": false,
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "check": "tsgo --noEmit",
     "lint": "biome check",
@@ -25,6 +30,7 @@
     "format": "biome format --write",
     "build": "node scripts/build.mjs",
     "test": "node tests/self-test.mjs",
+    "test:types": "tsgo -p tsconfig.test.json",
     "test:ci": "node scripts/test-ci.mjs",
     "release": "node scripts/release.mjs",
     "prepublishOnly": "node scripts/prepublish.mjs"
@@ -47,7 +53,7 @@
     "url": "git+https://github.com/igorjs/pure-test.git"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.4.14",
+    "@biomejs/biome": "2.4.14",
     "@typescript/native-preview": "latest"
   },
   "peerDependencies": {

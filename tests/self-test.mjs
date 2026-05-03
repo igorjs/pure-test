@@ -199,7 +199,10 @@ describe("expect.toThrow", () => {
   });
 
   it("fails when function does not throw", () => {
-    expect(() => expect(() => {}).toThrow()).toThrow();
+    const noop = () => {
+      /* intentionally empty */
+    };
+    expect(() => expect(noop).toThrow()).toThrow();
   });
 });
 
@@ -236,7 +239,7 @@ describe("async tests", () => {
   });
 
   it("supports async with delay", async () => {
-    const value = await new Promise((resolve) => setTimeout(() => resolve("done"), 10));
+    const value = await new Promise(resolve => setTimeout(() => resolve("done"), 10));
     expect(value).toBe("done");
   });
 });
@@ -295,17 +298,17 @@ describe("skip", () => {
 
 describe.concurrent("concurrent tests", () => {
   it("runs in parallel A", async () => {
-    await new Promise((r) => setTimeout(r, 10));
+    await new Promise(r => setTimeout(r, 10));
     expect(true).toBeTruthy();
   });
 
   it("runs in parallel B", async () => {
-    await new Promise((r) => setTimeout(r, 10));
+    await new Promise(r => setTimeout(r, 10));
     expect(true).toBeTruthy();
   });
 
   it("runs in parallel C", async () => {
-    await new Promise((r) => setTimeout(r, 10));
+    await new Promise(r => setTimeout(r, 10));
     expect(true).toBeTruthy();
   });
 });
@@ -424,13 +427,13 @@ describe("spyFn()", () => {
   });
 
   it("getMockImplementation returns current impl", () => {
-    const impl = (x) => x * 2;
+    const impl = x => x * 2;
     const spy = spyFn().mockImplementation(impl);
     expect(spy.getMockImplementation()).toBe(impl);
   });
 
   it("wraps an initial implementation", () => {
-    const spy = spyFn((x) => x * 2);
+    const spy = spyFn(x => x * 2);
     expect(spy(5)).toBe(10);
     expect(spy.mock.calls).toHaveLength(1);
   });
@@ -442,7 +445,7 @@ describe("spyOn()", () => {
   afterEach(() => restoreAllMocks());
 
   it("spies on a method and calls through", () => {
-    const obj = { greet: (name) => `hello ${name}` };
+    const obj = { greet: name => `hello ${name}` };
     const spy = spyOn(obj, "greet");
     expect(obj.greet("world")).toBe("hello world");
     expect(spy.mock.calls).toHaveLength(1);
@@ -526,7 +529,7 @@ describe("mockDeep()", () => {
 
   it("mocks nested methods recursively", () => {
     const db = {
-      users: { find: (id) => ({ id }), create: (data) => data },
+      users: { find: id => ({ id }), create: data => data },
       posts: { list: () => [] },
     };
     mockDeep(db);

@@ -132,38 +132,33 @@ export const spyFn = <
     },
   };
 
+  const resolveThrow = (): unknown => {
+    if (throwOnceQueue.length > 0) return throwOnceQueue.shift();
+    if (fixedThrow !== undefined) return fixedThrow.value;
+    return undefined;
+  };
+
+  const resolveReturn = (ctx: unknown, args: Parameters<T>): ReturnType<T> => {
+    if (returnThis) return ctx as ReturnType<T>;
+    if (returnOnceQueue.length > 0) return returnOnceQueue.shift()!;
+    if (implOnceQueue.length > 0) return implOnceQueue.shift()?.(...args) as ReturnType<T>;
+    if (fixedReturn !== undefined) return fixedReturn.value;
+    if (impl !== undefined) return impl(...args) as ReturnType<T>;
+    return undefined as ReturnType<T>;
+  };
+
   const mockFn = function (this: unknown, ...args: Parameters<T>): ReturnType<T> {
     calls.push(args);
     invocationCallOrder.push(++globalCallOrder);
 
     try {
-      let result: ReturnType<T>;
-
-      if (throwOnceQueue.length > 0) {
-        const err = throwOnceQueue.shift()!;
+      const err = resolveThrow();
+      if (err !== undefined) {
         results.push({ type: "throw", value: err as ReturnType<T> });
         throw err;
       }
 
-      if (fixedThrow !== undefined) {
-        results.push({ type: "throw", value: fixedThrow.value as ReturnType<T> });
-        throw fixedThrow.value;
-      }
-
-      if (returnThis) {
-        result = this as ReturnType<T>;
-      } else if (returnOnceQueue.length > 0) {
-        result = returnOnceQueue.shift()!;
-      } else if (implOnceQueue.length > 0) {
-        result = implOnceQueue.shift()?.(...args) as ReturnType<T>;
-      } else if (fixedReturn !== undefined) {
-        result = fixedReturn.value;
-      } else if (impl !== undefined) {
-        result = impl(...args) as ReturnType<T>;
-      } else {
-        result = undefined as ReturnType<T>;
-      }
-
+      const result = resolveReturn(this, args);
       results.push({ type: "return", value: result });
       return result;
     } catch (e) {
@@ -207,7 +202,7 @@ export const spyFn = <
   mockFn.mockRestore = () => {
     mockFn.mockReset();
     // For spyOn, the actual restore is handled by restoreAllMocks()
-    const record = spyRegistry.find((r) => r.mock === mockFn);
+    const record = spyRegistry.find(r => r.mock === mockFn);
     if (record) {
       record.target[record.method] = record.original;
       spyRegistry.splice(spyRegistry.indexOf(record), 1);

@@ -9,6 +9,10 @@
 import { getReporter, type Reporter } from "./reporters.js";
 import type { RunSummary, Suite, Test, TestResult } from "./types.js";
 
+declare const performance: { now(): number } | undefined;
+declare const console: { log(msg: string): void };
+declare function setTimeout(cb: () => void, ms: number): unknown;
+
 // ── Global state ────────────────────────────────────────────────────────────
 
 const rootSuite: Suite = {
@@ -49,7 +53,7 @@ const scheduleAutoRun = (): void => {
   if (autoRunScheduled || cliMode) return;
   autoRunScheduled = true;
   setTimeout(() => {
-    run();
+    void run();
   }, 0);
 };
 
@@ -86,7 +90,13 @@ export const test = it;
 
 /** Skip a test. */
 it.skip = (name: string, _fn: () => void | Promise<void>): void => {
-  currentSuite.tests.push({ name, fn: () => {}, skip: true });
+  currentSuite.tests.push({
+    name,
+    fn: () => {
+      /* noop: skipped */
+    },
+    skip: true,
+  });
   scheduleAutoRun();
 };
 
@@ -213,7 +223,7 @@ const runSuite = async (
 
   // Run tests: concurrent or sequential
   if (suite.concurrent) {
-    const promises = suite.tests.map((t) => runTest(t, suitePath, allBeforeEach, allAfterEach));
+    const promises = suite.tests.map(t => runTest(t, suitePath, allBeforeEach, allAfterEach));
     results.push(...(await Promise.all(promises)));
   } else {
     for (const t of suite.tests) {
@@ -252,23 +262,24 @@ export const run = async (): Promise<RunSummary> => {
 
   const summary: RunSummary = {
     results,
-    passed: results.filter((r) => r.status === "pass").length,
-    failed: results.filter((r) => r.status === "fail").length,
-    skipped: results.filter((r) => r.status === "skip").length,
+    passed: results.filter(r => r.status === "pass").length,
+    failed: results.filter(r => r.status === "fail").length,
+    skipped: results.filter(r => r.status === "skip").length,
     duration: now() - start,
   };
 
   const reporter = activeReporter ?? getReporter("spec");
+  // biome-ignore lint/suspicious/noConsole: test runner output
   console.log(reporter.format(summary));
 
   // Exit with failure code if any tests failed
   if (summary.failed > 0) {
     const g = globalThis as Record<string, unknown>;
-    const proc = g.process as { exit?(code: number): void } | undefined;
+    const proc = g["process"] as { exit?(code: number): void } | undefined;
     if (proc?.exit) {
       proc.exit(1);
     }
-    const deno = g.Deno as { exit?(code: number): void } | undefined;
+    const deno = g["Deno"] as { exit?(code: number): void } | undefined;
     if (deno?.exit) {
       deno.exit(1);
     }

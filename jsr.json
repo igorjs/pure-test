@@ -1,0 +1,17 @@
+{
+  "name": "@igorjs/pure-test",
+  "version": "0.1.0",
+  "exports": "./src/index.ts",
+  "include": [
+    "src/",
+    "LICENSE",
+    "README.md"
+  ],
+  "publish": {
+    "include": [
+      "src/",
+      "LICENSE",
+      "README.md"
+    ]
+  }
+}

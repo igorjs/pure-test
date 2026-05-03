@@ -19,6 +19,24 @@ export class AssertionError extends Error {
   }
 }
 
+const deepEqualArrays = (a: unknown[], b: unknown[]): boolean => {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (!deepEqual(a[i], b[i])) return false;
+  }
+  return true;
+};
+
+const deepEqualObjects = (a: Record<string, unknown>, b: Record<string, unknown>): boolean => {
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  for (const key of aKeys) {
+    if (!deepEqual(a[key], b[key])) return false;
+  }
+  return true;
+};
+
 /** Deep strict equality check. */
 const deepEqual = (a: unknown, b: unknown): boolean => {
   if (a === b) return true;
@@ -29,24 +47,10 @@ const deepEqual = (a: unknown, b: unknown): boolean => {
   if (a instanceof RegExp && b instanceof RegExp)
     return a.source === b.source && a.flags === b.flags;
 
-  if (Array.isArray(a) && Array.isArray(b)) {
-    if (a.length !== b.length) return false;
-    for (let i = 0; i < a.length; i++) {
-      if (!deepEqual(a[i], b[i])) return false;
-    }
-    return true;
-  }
+  if (Array.isArray(a) && Array.isArray(b)) return deepEqualArrays(a, b);
 
   if (typeof a === "object" && typeof b === "object") {
-    const aObj = a as Record<string, unknown>;
-    const bObj = b as Record<string, unknown>;
-    const aKeys = Object.keys(aObj);
-    const bKeys = Object.keys(bObj);
-    if (aKeys.length !== bKeys.length) return false;
-    for (const key of aKeys) {
-      if (!deepEqual(aObj[key], bObj[key])) return false;
-    }
-    return true;
+    return deepEqualObjects(a as Record<string, unknown>, b as Record<string, unknown>);
   }
 
   return false;
