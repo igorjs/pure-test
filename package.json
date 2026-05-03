@@ -19,10 +19,10 @@
     "bin"
   ],
   "scripts": {
-    "build": "rm -rf dist && tsc",
+    "build": "rm -rf dist && tsgo",
     "lint": "biome check",
     "lint:fix": "biome check --write",
-    "check": "tsc --noEmit",
+    "check": "tsgo --noEmit",
     "test": "node tests/self-test.mjs",
     "test:deno": "deno run --allow-all tests/self-test.mjs",
     "test:all": "node tests/self-test.mjs && deno run --allow-all tests/self-test.mjs"
@@ -46,6 +46,14 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.14",
-    "typescript": "^6.0.3"
+    "@typescript/native-preview": "latest"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.7.0"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
   }
 }
