@@ -7,7 +7,21 @@
  *   bun tests/self-test.mjs
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, spyFn, spyOn, mock, mockDeep, restoreAllMocks, clearAllMocks, resetAllMocks } from "../dist/index.js";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  clearAllMocks,
+  describe,
+  expect,
+  it,
+  mock,
+  mockDeep,
+  resetAllMocks,
+  restoreAllMocks,
+  spyFn,
+  spyOn,
+} from "../dist/index.js";
 
 // ── expect.toBe ─────────────────────────────────────────────────────────────
 
@@ -167,15 +181,21 @@ describe("expect.toHaveLength", () => {
 
 describe("expect.toThrow", () => {
   it("passes when function throws", () => {
-    expect(() => { throw new Error("boom"); }).toThrow();
+    expect(() => {
+      throw new Error("boom");
+    }).toThrow();
   });
 
   it("matches error message", () => {
-    expect(() => { throw new Error("file not found"); }).toThrow("not found");
+    expect(() => {
+      throw new Error("file not found");
+    }).toThrow("not found");
   });
 
   it("matches error regex", () => {
-    expect(() => { throw new Error("error code 42"); }).toThrow(/code \d+/);
+    expect(() => {
+      throw new Error("error code 42");
+    }).toThrow(/code \d+/);
   });
 
   it("fails when function does not throw", () => {
@@ -216,7 +236,7 @@ describe("async tests", () => {
   });
 
   it("supports async with delay", async () => {
-    const value = await new Promise(resolve => setTimeout(() => resolve("done"), 10));
+    const value = await new Promise((resolve) => setTimeout(() => resolve("done"), 10));
     expect(value).toBe("done");
   });
 });
@@ -275,17 +295,17 @@ describe("skip", () => {
 
 describe.concurrent("concurrent tests", () => {
   it("runs in parallel A", async () => {
-    await new Promise(r => setTimeout(r, 10));
+    await new Promise((r) => setTimeout(r, 10));
     expect(true).toBeTruthy();
   });
 
   it("runs in parallel B", async () => {
-    await new Promise(r => setTimeout(r, 10));
+    await new Promise((r) => setTimeout(r, 10));
     expect(true).toBeTruthy();
   });
 
   it("runs in parallel C", async () => {
-    await new Promise(r => setTimeout(r, 10));
+    await new Promise((r) => setTimeout(r, 10));
     expect(true).toBeTruthy();
   });
 });
@@ -320,10 +340,7 @@ describe("spyFn()", () => {
   });
 
   it("mockReturnValueOnce chains one-time returns", () => {
-    const spy = spyFn()
-      .mockReturnValueOnce(1)
-      .mockReturnValueOnce(2)
-      .mockReturnValueOnce(3);
+    const spy = spyFn().mockReturnValueOnce(1).mockReturnValueOnce(2).mockReturnValueOnce(3);
     expect(spy()).toBe(1);
     expect(spy()).toBe(2);
     expect(spy()).toBe(3);
@@ -351,9 +368,7 @@ describe("spyFn()", () => {
   });
 
   it("mockResolvedValueOnce chains async returns", async () => {
-    const spy = spyFn()
-      .mockResolvedValueOnce("a")
-      .mockResolvedValueOnce("b");
+    const spy = spyFn().mockResolvedValueOnce("a").mockResolvedValueOnce("b");
     expect(await spy()).toBe("a");
     expect(await spy()).toBe("b");
   });
@@ -375,9 +390,7 @@ describe("spyFn()", () => {
   });
 
   it("mockThrowOnce throws once then normal", () => {
-    const spy = spyFn()
-      .mockReturnValue("ok")
-      .mockThrowOnce(new Error("once"));
+    const spy = spyFn().mockReturnValue("ok").mockThrowOnce(new Error("once"));
     expect(() => spy()).toThrow("once");
     expect(spy()).toBe("ok");
   });

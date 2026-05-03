@@ -26,7 +26,8 @@ const deepEqual = (a: unknown, b: unknown): boolean => {
   if (typeof a !== typeof b) return false;
 
   if (a instanceof Date && b instanceof Date) return a.getTime() === b.getTime();
-  if (a instanceof RegExp && b instanceof RegExp) return a.source === b.source && a.flags === b.flags;
+  if (a instanceof RegExp && b instanceof RegExp)
+    return a.source === b.source && a.flags === b.flags;
 
   if (Array.isArray(a) && Array.isArray(b)) {
     if (a.length !== b.length) return false;
@@ -121,7 +122,11 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
     },
 
     toEqual(expected: T) {
-      assert(deepEqual(actual, expected), `${format(actual)} to equal ${format(expected)}`, expected);
+      assert(
+        deepEqual(actual, expected),
+        `${format(actual)} to equal ${format(expected)}`,
+        expected,
+      );
     },
 
     toBeTruthy() {
@@ -166,7 +171,11 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
 
     toContain(expected: unknown) {
       if (typeof actual === "string") {
-        assert(actual.includes(expected as string), `"${actual}" to contain "${expected}"`, expected);
+        assert(
+          actual.includes(expected as string),
+          `"${actual}" to contain "${expected}"`,
+          expected,
+        );
       } else if (Array.isArray(actual)) {
         assert(actual.includes(expected), `array to contain ${format(expected)}`, expected);
       } else {
@@ -199,9 +208,17 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
       if (threw && messageOrPattern !== undefined) {
         const msg = error instanceof Error ? error.message : String(error);
         if (typeof messageOrPattern === "string") {
-          assert(msg.includes(messageOrPattern), `error "${msg}" to contain "${messageOrPattern}"`, messageOrPattern);
+          assert(
+            msg.includes(messageOrPattern),
+            `error "${msg}" to contain "${messageOrPattern}"`,
+            messageOrPattern,
+          );
         } else {
-          assert(messageOrPattern.test(msg), `error "${msg}" to match ${messageOrPattern}`, messageOrPattern);
+          assert(
+            messageOrPattern.test(msg),
+            `error "${msg}" to match ${messageOrPattern}`,
+            messageOrPattern,
+          );
         }
       }
     },

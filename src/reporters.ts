@@ -87,7 +87,9 @@ export const spec: Reporter = {
     }
 
     lines.push("");
-    lines.push(`${summary.passed} passed, ${summary.failed} failed, ${summary.skipped} skipped (${summary.duration.toFixed(0)}ms)`);
+    lines.push(
+      `${summary.passed} passed, ${summary.failed} failed, ${summary.skipped} skipped (${summary.duration.toFixed(0)}ms)`,
+    );
 
     return lines.join("\n");
   },
@@ -122,7 +124,9 @@ export const json: Reporter = {
 export const minimal: Reporter = {
   name: "minimal",
   format: (summary) => {
-    const dots = summary.results.map((r) => (r.status === "pass" ? "." : r.status === "skip" ? "s" : "F")).join("");
+    const dots = summary.results
+      .map((r) => (r.status === "pass" ? "." : r.status === "skip" ? "s" : "F"))
+      .join("");
     const lines = [dots, ""];
 
     // Show failures
@@ -133,7 +137,9 @@ export const minimal: Reporter = {
       lines.push("");
     }
 
-    lines.push(`${summary.passed} passed, ${summary.failed} failed, ${summary.skipped} skipped (${summary.duration.toFixed(0)}ms)`);
+    lines.push(
+      `${summary.passed} passed, ${summary.failed} failed, ${summary.skipped} skipped (${summary.duration.toFixed(0)}ms)`,
+    );
     return lines.join("\n");
   },
 };

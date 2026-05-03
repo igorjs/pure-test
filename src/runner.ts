@@ -264,11 +264,11 @@ export const run = async (): Promise<RunSummary> => {
   // Exit with failure code if any tests failed
   if (summary.failed > 0) {
     const g = globalThis as Record<string, unknown>;
-    const proc = g["process"] as { exit?(code: number): void } | undefined;
+    const proc = g.process as { exit?(code: number): void } | undefined;
     if (proc?.exit) {
       proc.exit(1);
     }
-    const deno = g["Deno"] as { exit?(code: number): void } | undefined;
+    const deno = g.Deno as { exit?(code: number): void } | undefined;
     if (deno?.exit) {
       deno.exit(1);
     }

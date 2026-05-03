@@ -18,7 +18,9 @@ export interface MockResult<T> {
 }
 
 /** A Vitest-compatible mock function. */
-export interface MockFn<T extends (...args: readonly unknown[]) => unknown = (...args: readonly unknown[]) => unknown> {
+export interface MockFn<
+  T extends (...args: readonly unknown[]) => unknown = (...args: readonly unknown[]) => unknown,
+> {
   /** Call the mock. */
   (...args: Parameters<T>): ReturnType<T>;
 
@@ -97,7 +99,9 @@ let globalCallOrder = 0;
 // ── fn() ────────────────────────────────────────────────────────────────────
 
 /** Create a standalone spy function. */
-export const spyFn = <T extends (...args: readonly unknown[]) => unknown = (...args: readonly unknown[]) => unknown>(
+export const spyFn = <
+  T extends (...args: readonly unknown[]) => unknown = (...args: readonly unknown[]) => unknown,
+>(
   initialImpl?: T,
 ): MockFn<T> => {
   let name = "spyFn()";
@@ -114,10 +118,18 @@ export const spyFn = <T extends (...args: readonly unknown[]) => unknown = (...a
   const invocationCallOrder: number[] = [];
 
   const mockData = {
-    get calls() { return calls; },
-    get results() { return results; },
-    get lastCall() { return calls.length > 0 ? calls[calls.length - 1] : undefined; },
-    get invocationCallOrder() { return invocationCallOrder; },
+    get calls() {
+      return calls;
+    },
+    get results() {
+      return results;
+    },
+    get lastCall() {
+      return calls.length > 0 ? calls[calls.length - 1] : undefined;
+    },
+    get invocationCallOrder() {
+      return invocationCallOrder;
+    },
   };
 
   const mockFn = function (this: unknown, ...args: Parameters<T>): ReturnType<T> {
@@ -143,7 +155,7 @@ export const spyFn = <T extends (...args: readonly unknown[]) => unknown = (...a
       } else if (returnOnceQueue.length > 0) {
         result = returnOnceQueue.shift()!;
       } else if (implOnceQueue.length > 0) {
-        result = implOnceQueue.shift()!(...args) as ReturnType<T>;
+        result = implOnceQueue.shift()?.(...args) as ReturnType<T>;
       } else if (fixedReturn !== undefined) {
         result = fixedReturn.value;
       } else if (impl !== undefined) {
@@ -155,7 +167,7 @@ export const spyFn = <T extends (...args: readonly unknown[]) => unknown = (...a
       results.push({ type: "return", value: result });
       return result;
     } catch (e) {
-      if (results.length === 0 || results[results.length - 1]!.type !== "throw") {
+      if (results.length === 0 || results[results.length - 1]?.type !== "throw") {
         results.push({ type: "throw", value: e as ReturnType<T> });
       }
       throw e;
@@ -167,7 +179,10 @@ export const spyFn = <T extends (...args: readonly unknown[]) => unknown = (...a
 
   // Naming
   mockFn.getMockName = () => name;
-  mockFn.mockName = (n: string) => { name = n; return mockFn; };
+  mockFn.mockName = (n: string) => {
+    name = n;
+    return mockFn;
+  };
 
   // History
   mockFn.mockClear = () => {
@@ -200,13 +215,25 @@ export const spyFn = <T extends (...args: readonly unknown[]) => unknown = (...a
   };
 
   // Implementation
-  mockFn.mockImplementation = (f: T) => { impl = f; return mockFn; };
-  mockFn.mockImplementationOnce = (f: T) => { implOnceQueue.push(f); return mockFn; };
+  mockFn.mockImplementation = (f: T) => {
+    impl = f;
+    return mockFn;
+  };
+  mockFn.mockImplementationOnce = (f: T) => {
+    implOnceQueue.push(f);
+    return mockFn;
+  };
   mockFn.getMockImplementation = () => impl;
 
   // Return values
-  mockFn.mockReturnValue = (value: ReturnType<T>) => { fixedReturn = { value }; return mockFn; };
-  mockFn.mockReturnValueOnce = (value: ReturnType<T>) => { returnOnceQueue.push(value); return mockFn; };
+  mockFn.mockReturnValue = (value: ReturnType<T>) => {
+    fixedReturn = { value };
+    return mockFn;
+  };
+  mockFn.mockReturnValueOnce = (value: ReturnType<T>) => {
+    returnOnceQueue.push(value);
+    return mockFn;
+  };
 
   mockFn.mockResolvedValue = (value: Awaited<ReturnType<T>>) => {
     impl = (() => Promise.resolve(value)) as unknown as T;
@@ -226,9 +253,18 @@ export const spyFn = <T extends (...args: readonly unknown[]) => unknown = (...a
     return mockFn;
   };
 
-  mockFn.mockThrow = (value: unknown) => { fixedThrow = { value }; return mockFn; };
-  mockFn.mockThrowOnce = (value: unknown) => { throwOnceQueue.push(value); return mockFn; };
-  mockFn.mockReturnThis = () => { returnThis = true; return mockFn; };
+  mockFn.mockThrow = (value: unknown) => {
+    fixedThrow = { value };
+    return mockFn;
+  };
+  mockFn.mockThrowOnce = (value: unknown) => {
+    throwOnceQueue.push(value);
+    return mockFn;
+  };
+  mockFn.mockReturnThis = () => {
+    returnThis = true;
+    return mockFn;
+  };
 
   return mockFn;
 };

@@ -20,23 +20,31 @@
  * ```
  */
 
-export { expect, AssertionError } from "./expect.js";
 export type { Expectation } from "./expect.js";
+export { AssertionError, expect } from "./expect.js";
+export type { MockFn, MockResult } from "./mock.js";
 export {
+  clearAllMocks,
+  mock,
+  mockDeep,
+  resetAllMocks,
+  restoreAllMocks,
+  spyFn,
+  spyOn,
+} from "./mock.js";
+export type { Reporter } from "./reporters.js";
+export { getReporter, json, minimal, spec, tap } from "./reporters.js";
+export {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
   describe,
   it,
-  test,
-  beforeAll,
-  afterAll,
-  beforeEach,
-  afterEach,
-  run,
   reset,
+  run,
   setCLIMode,
   setReporter,
+  test,
 } from "./runner.js";
-export { tap, spec, json, minimal, getReporter } from "./reporters.js";
-export type { Reporter } from "./reporters.js";
-export { spyFn, spyOn, mock, mockDeep, restoreAllMocks, clearAllMocks, resetAllMocks } from "./mock.js";
-export type { MockFn, MockResult } from "./mock.js";
-export type { Test, Suite, TestResult, RunSummary } from "./types.js";
+export type { RunSummary, Suite, Test, TestResult } from "./types.js";
