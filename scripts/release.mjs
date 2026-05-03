@@ -68,21 +68,22 @@ if (ciStatus !== "success") {
 if (skipTestCi) {
   log("Skipping test:ci and publish dry run (--skip-test-ci).");
 } else {
-log("Running full test matrix (native + Docker)...");
-try {
-  run("pnpm run test:ci", { stdio: "inherit" });
-} catch {
-  die("Test matrix failed. Fix all failures before releasing.");
-}
+  log("Running full test matrix (native + Docker)...");
+  try {
+    run("pnpm run test:ci", { stdio: "inherit" });
+  } catch {
+    die("Test matrix failed. Fix all failures before releasing.");
+  }
 
-log("Verifying npm publish (dry run)...");
-try {
-  const cleanEnv = Object.fromEntries(
-    Object.entries(process.env).filter(([k]) => !k.startsWith("npm_")),
-  );
-  execSync("npm publish --dry-run --ignore-scripts", { stdio: "inherit", env: cleanEnv });
-} catch {
-  die("npm publish dry run failed. Fix packaging issues before releasing.");
+  log("Verifying npm publish (dry run)...");
+  try {
+    const cleanEnv = Object.fromEntries(
+      Object.entries(process.env).filter(([k]) => !k.startsWith("npm_")),
+    );
+    execSync("npm publish --dry-run --ignore-scripts", { stdio: "inherit", env: cleanEnv });
+  } catch {
+    die("npm publish dry run failed. Fix packaging issues before releasing.");
+  }
 }
 
 // -- Detect repo URL from git remote ------------------------------------------
@@ -332,7 +333,11 @@ run("git commit --signoff --gpg-sign --file .git/.release-msg.tmp");
 run("rm -f .git/.release-msg.tmp");
 
 log("Tagging...");
-run(canSign ? `git tag -s v${newVersion} -m "v${newVersion}"` : `git tag v${newVersion} -m "v${newVersion}"`);
+run(
+  canSign
+    ? `git tag -s v${newVersion} -m "v${newVersion}"`
+    : `git tag v${newVersion} -m "v${newVersion}"`,
+);
 
 log("Pushing...");
 run("git push origin HEAD:refs/heads/main");

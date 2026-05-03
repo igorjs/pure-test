@@ -144,7 +144,6 @@ if (runDocker) {
 
     let completed = 0;
     const total = services.length;
-    const dockerResults = [];
 
     const runService = (service) =>
       new Promise((resolve) => {
