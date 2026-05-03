@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Pure Test"
+abstract: "Minimal cross-runtime test runner. Zero dependencies. Works on Node.js, Deno, Bun, Workers, and browsers."
+type: software
+license: Apache-2.0
+url: "https://github.com/igorjs/pure-test"
+repository-code: "https://github.com/igorjs/pure-test"
+authors:
+  - alias: igorjs
+    email: oss@mail.igorjs.io
+keywords:
+  - testing
+  - test-runner
+  - cross-runtime
+  - zero-dependencies
+  - deno
+  - bun
