@@ -1,33 +1,42 @@
 services:
-  ubuntu:
-    build:
-      context: .
-      dockerfile: Dockerfile.test
-      args:
-        BASE: ubuntu:24.04
-        NODE_VERSION: "24"
+  # ── Node (official: node:VERSION-VARIANT) ───────────────────────────────
+  node-22-bookworm-slim:
+    build: { context: ., dockerfile: docker/node.Dockerfile, args: { NODE_VERSION: "22", VARIANT: bookworm-slim } }
+  node-22-alpine:
+    build: { context: ., dockerfile: docker/node.Dockerfile, args: { NODE_VERSION: "22", VARIANT: alpine } }
+  node-24-bookworm-slim:
+    build: { context: ., dockerfile: docker/node.Dockerfile, args: { NODE_VERSION: "24", VARIANT: bookworm-slim } }
+  node-24-bullseye-slim:
+    build: { context: ., dockerfile: docker/node.Dockerfile, args: { NODE_VERSION: "24", VARIANT: bullseye-slim } }
+  node-24-alpine:
+    build: { context: ., dockerfile: docker/node.Dockerfile, args: { NODE_VERSION: "24", VARIANT: alpine } }
+  node-25-bookworm-slim:
+    build: { context: ., dockerfile: docker/node.Dockerfile, args: { NODE_VERSION: "25", VARIANT: bookworm-slim } }
+  node-25-alpine:
+    build: { context: ., dockerfile: docker/node.Dockerfile, args: { NODE_VERSION: "25", VARIANT: alpine } }
 
-  fedora:
-    build:
-      context: .
-      dockerfile: Dockerfile.test
-      args:
-        BASE: fedora:42
-        NODE_VERSION: "24"
+  # ── Distroless Node (production runtime) ────────────────────────────────
+  node-distroless:
+    build: { context: ., dockerfile: docker/distroless.Dockerfile }
 
-  arch:
-    build:
-      context: .
-      dockerfile: Dockerfile.test
-      args:
-        BASE: archlinux:latest
-        NODE_VERSION: "24"
+  # ── Deno (official: denoland/deno:VARIANT) ──────────────────────────────
+  deno-debian:
+    build: { context: ., dockerfile: docker/deno.Dockerfile, args: { VARIANT: debian } }
+    entrypoint: ["deno", "run", "--allow-all", "tests/self-test.mjs"]
+  deno-alpine:
+    build: { context: ., dockerfile: docker/deno.Dockerfile, args: { VARIANT: alpine } }
+    entrypoint: ["deno", "run", "--allow-all", "tests/self-test.mjs"]
+  deno-ubuntu:
+    build: { context: ., dockerfile: docker/deno.Dockerfile, args: { VARIANT: ubuntu } }
+    entrypoint: ["deno", "run", "--allow-all", "tests/self-test.mjs"]
+  deno-distroless:
+    build: { context: ., dockerfile: docker/deno.Dockerfile, args: { VARIANT: distroless } }
+    entrypoint: ["deno", "run", "--allow-all", "tests/self-test.mjs"]
 
-  alpine:
-    build:
-      context: .
-      dockerfile: Dockerfile.test
-      args:
-        BASE: alpine:3.21
-        NODE_VERSION: "24"
-        BUN: "false"
+  # ── Bun (official: oven/bun:VARIANT) ────────────────────────────────────
+  bun-debian:
+    build: { context: ., dockerfile: docker/bun.Dockerfile, args: { VARIANT: debian } }
+  bun-slim:
+    build: { context: ., dockerfile: docker/bun.Dockerfile, args: { VARIANT: slim } }
+  bun-alpine:
+    build: { context: ., dockerfile: docker/bun.Dockerfile, args: { VARIANT: alpine } }

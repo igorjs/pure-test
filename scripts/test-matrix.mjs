@@ -4,10 +4,16 @@
  *
  * Usage:
  *   node scripts/test-matrix.mjs
+ *   node scripts/test-matrix.mjs --verbose --runtime node
  */
 
 import { execFileSync, execSync } from "node:child_process";
 
+const argv = process.argv.slice(2);
+const verbose = argv.includes("--verbose") || !!process.env.CI;
+const runtimeIdx = argv.indexOf("--runtime");
+const runtimeFilter = runtimeIdx !== -1 ? argv[runtimeIdx + 1] : null;
+const noSummary = argv.includes("--no-summary");
 const log = (msg) => process.stdout.write(`${msg}\n`);
 
 const hasCommand = (cmd) => {
@@ -28,42 +34,58 @@ const getVersion = (cmd, args = ["-v"]) => {
 };
 
 const results = [];
+const errors = [];
 let pass = 0;
 let fail = 0;
 let skip = 0;
 
 const runTest = (name, cmd, args) => {
-  log(`\n══════ ${name} ══════`);
+  if (verbose) log(`\n══════ ${name} ══════`);
+  else process.stdout.write(`  ${name} ... `);
   try {
-    execFileSync(cmd, args, { stdio: "inherit" });
+    execFileSync(cmd, args, verbose ? { stdio: "inherit" } : { stdio: "pipe", encoding: "utf-8" });
+    if (!verbose) log("PASS");
     results.push(`PASS  ${name}`);
     pass++;
-  } catch {
+  } catch (e) {
+    if (!verbose) log("FAIL");
     results.push(`FAIL  ${name}`);
+    errors.push({ name, output: String(e.stderr || e.stdout || e.message) });
     fail++;
   }
 };
 
 const runPnpm = (name, scriptArgs) => {
-  log(`\n══════ ${name} ══════`);
+  if (verbose) log(`\n══════ ${name} ══════`);
+  else process.stdout.write(`  ${name} ... `);
   try {
-    execSync(`pnpm ${scriptArgs}`, { stdio: "inherit" });
+    execSync(
+      `pnpm ${scriptArgs}`,
+      verbose ? { stdio: "inherit" } : { stdio: "pipe", encoding: "utf-8" },
+    );
+    if (!verbose) log("PASS");
     results.push(`PASS  ${name}`);
     pass++;
-  } catch {
+  } catch (e) {
+    if (!verbose) log("FAIL");
     results.push(`FAIL  ${name}`);
+    errors.push({ name, output: String(e.stderr || e.stdout || e.message) });
     fail++;
   }
 };
 
 const skipTest = (name, reason) => {
+  if (verbose) log(`\n══════ ${name} ══════ SKIP (${reason})`);
+  else log(`  ${name} ... SKIP (${reason})`);
   results.push(`SKIP  ${name} (${reason})`);
   skip++;
 };
 
 // -- Node.js ------------------------------------------------------------------
 
-if (hasCommand("node")) {
+if (runtimeFilter && runtimeFilter !== "node") {
+  // skip
+} else if (hasCommand("node")) {
   const v = getVersion("node");
   runPnpm(`node ${v} / self-test`, "test");
 } else {
@@ -72,7 +94,9 @@ if (hasCommand("node")) {
 
 // -- Deno ---------------------------------------------------------------------
 
-if (hasCommand("deno")) {
+if (runtimeFilter && runtimeFilter !== "deno") {
+  // skip
+} else if (hasCommand("deno")) {
   const v = getVersion("deno");
   runTest(`${v} / self-test`, "deno", ["run", "--allow-all", "tests/self-test.mjs"]);
 } else {
@@ -81,7 +105,9 @@ if (hasCommand("deno")) {
 
 // -- Bun ----------------------------------------------------------------------
 
-if (hasCommand("bun")) {
+if (runtimeFilter && runtimeFilter !== "bun") {
+  // skip
+} else if (hasCommand("bun")) {
   const v = `bun ${getVersion("bun")}`;
   runTest(`${v} / self-test`, "bun", ["tests/self-test.mjs"]);
 } else {
@@ -90,18 +116,18 @@ if (hasCommand("bun")) {
 
 // -- Summary ------------------------------------------------------------------
 
-const W = 38;
-const pad = (s) => s.padEnd(W - 4);
+if (!noSummary) {
+  log(`\n  PASS: ${pass}  FAIL: ${fail}  SKIP: ${skip}`);
 
-log(`\n${"╔" + "═".repeat(W) + "╗"}`);
-log(`║${" ".repeat(5)}TEST MATRIX RESULTS${" ".repeat(W - 24)}║`);
-log(`${"╠" + "═".repeat(W) + "╣"}`);
-for (const r of results) {
-  log(`║  ${pad(r)} ║`);
+  if (errors.length > 0) {
+    log("\n── ERRORS ──");
+    for (const err of errors) {
+      log(`\n✗ ${err.name}:`);
+      const lines = err.output.split("\n").slice(-20);
+      log(lines.join("\n"));
+    }
+  }
 }
-log(`${"╠" + "═".repeat(W) + "╣"}`);
-log(`║  ${pad(`PASS: ${pass}  FAIL: ${fail}  SKIP: ${skip}`)} ║`);
-log(`${"╚" + "═".repeat(W) + "╝"}`);
 
 if (fail > 0) {
   process.exit(1);

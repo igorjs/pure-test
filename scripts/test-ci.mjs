@@ -2,7 +2,9 @@
  * test-ci.mjs - Run the full CI test matrix locally.
  *
  * 1. Native tests: Node 22/24/25 (via fnm) + Deno + Bun
- * 2. Docker containers: Ubuntu, Fedora, Arch, Alpine
+ * 2. Docker containers: 4 distros x 3 runtimes (11 containers, parallel)
+ *
+ * Output is quiet locally, verbose in CI or with --verbose.
  *
  * Usage:
  *   node scripts/test-ci.mjs              # full matrix
@@ -10,7 +12,7 @@
  *   node scripts/test-ci.mjs --docker     # Docker only (skip native)
  */
 
-import { execFileSync, execSync } from "node:child_process";
+import { execFileSync, execSync, spawn } from "node:child_process";
 
 const log = (msg) => process.stdout.write(`${msg}\n`);
 
@@ -30,25 +32,25 @@ const runDocker = !args.includes("--native");
 const COMPOSE_FILE = "docker-compose.test.yml";
 const COMPOSE_PROJECT = "pure-test-test";
 const NODE_VERSIONS = ["22", "24", "25"];
-const DISTROS = ["ubuntu", "fedora", "arch", "alpine"];
 
 let failed = false;
+const dockerErrors = [];
 
+let cleaned = false;
 const cleanup = () => {
-  if (runDocker && hasCommand("docker")) {
-    log("\nCleaning up Docker resources...");
-    try {
-      execSync(
-        `docker compose -p ${COMPOSE_PROJECT} -f ${COMPOSE_FILE} down --rmi local --volumes --remove-orphans`,
-        { stdio: "pipe" },
-      );
-    } catch {
-      // best-effort cleanup
-    }
+  if (cleaned || !runDocker || !hasCommand("docker")) return;
+  cleaned = true;
+  log("\nCleaning up Docker resources...");
+  try {
+    execSync(
+      `docker compose -p ${COMPOSE_PROJECT} -f ${COMPOSE_FILE} down --rmi local --volumes --remove-orphans 2>/dev/null`,
+      { stdio: "ignore", shell: true },
+    );
+  } catch {
+    // best-effort
   }
 };
 
-process.on("exit", cleanup);
 process.on("SIGINT", () => {
   cleanup();
   process.exit(130);
@@ -58,82 +60,140 @@ process.on("SIGTERM", () => {
   process.exit(143);
 });
 
-const banner = (title) => {
-  log(`\n┌${"─".repeat(38)}┐`);
-  log(`│${title.padStart(19 + Math.ceil(title.length / 2)).padEnd(38)}│`);
-  log(`└${"─".repeat(38)}┘`);
-};
-
 // -- Native tests -------------------------------------------------------------
 
 if (runNative) {
-  // Lint + type-check + build once
-  banner("NATIVE: lint + build");
+  log("\n── Checks ──");
+  process.stdout.write("  lint + check + build ... ");
   try {
-    execSync("pnpm run lint && pnpm run check && pnpm run build", { stdio: "inherit" });
-  } catch {
-    log("Native lint/check/build failed.");
+    execSync("pnpm run lint && pnpm run check && pnpm run build", { stdio: "pipe" });
+    log("OK");
+  } catch (e) {
+    log("FAIL");
+    log(String(e.stderr || e.stdout || e.message));
     process.exit(1);
   }
 
-  // Run test matrix for each Node version via fnm
+  log("\n── Native ──");
   const hasFnm = hasCommand("fnm");
 
+  // Run Node tests for each version
   for (const nodeVersion of NODE_VERSIONS) {
-    banner(`NATIVE: node ${nodeVersion}`);
     try {
       if (hasFnm) {
         execSync(
-          `fnm install ${nodeVersion} 2>/dev/null; fnm exec --using ${nodeVersion} node scripts/test-matrix.mjs`,
+          `fnm install ${nodeVersion} 2>/dev/null; fnm exec --using ${nodeVersion} node scripts/test-matrix.mjs --no-summary --runtime node`,
           {
             stdio: "inherit",
             shell: true,
           },
         );
       } else if (nodeVersion === process.versions.node.split(".")[0]) {
-        execSync("node scripts/test-matrix.mjs", { stdio: "inherit" });
+        execSync("node scripts/test-matrix.mjs --no-summary --runtime node", { stdio: "inherit" });
       } else {
-        log(`SKIP: fnm not available, cannot test node ${nodeVersion}`);
+        log(`  node ${nodeVersion} ... SKIP (fnm not available)`);
       }
     } catch {
-      log(`FAIL: node ${nodeVersion}`);
       failed = true;
     }
   }
 
-  // Deno + Bun run from the default Node's test-matrix
-  // (already covered if fnm ran the current version, but we need Deno/Bun explicitly
-  // if fnm switched away from current node for the last run)
+  // Run Deno, Bun, browser, workers once
+  for (const runtime of ["deno", "bun", "browser", "workers"]) {
+    try {
+      execSync(`node scripts/test-matrix.mjs --no-summary --runtime ${runtime}`, {
+        stdio: "inherit",
+      });
+    } catch {
+      failed = true;
+    }
+  }
 }
 
-// -- Docker matrix ------------------------------------------------------------
+// -- Docker matrix (parallel) ------------------------------------------------
 
 if (runDocker) {
   if (!hasCommand("docker")) {
     log("\nWARN: Docker not available, skipping container tests.");
   } else {
-    for (const distro of DISTROS) {
-      banner(`DOCKER: ${distro}`);
+    log("\n── Docker ──");
+
+    // Ensure dist/ exists for Deno containers (they COPY it from build context)
+    try {
+      const { statSync } = await import("node:fs");
+      statSync("./dist/index.js");
+    } catch {
+      process.stdout.write("  building dist/ ... ");
       try {
-        execSync(
-          `docker compose -p ${COMPOSE_PROJECT} -f ${COMPOSE_FILE} run --rm --build ${distro}`,
-          { stdio: "inherit" },
-        );
-        log(`PASS: ${distro}`);
-      } catch {
-        log(`FAIL: ${distro}`);
-        failed = true;
+        execSync("pnpm run build", { stdio: "pipe" });
+        log("OK");
+      } catch (e) {
+        log("FAIL");
+        log(String(e.stderr || e.stdout || e.message));
+        process.exit(1);
       }
     }
+
+    // Discover services, build + run each independently in parallel
+    const services = execSync(
+      `docker compose -p ${COMPOSE_PROJECT} -f ${COMPOSE_FILE} config --services`,
+      { encoding: "utf-8", stdio: "pipe" },
+    )
+      .trim()
+      .split("\n");
+
+    let completed = 0;
+    const total = services.length;
+    const dockerResults = [];
+
+    const runService = (service) =>
+      new Promise((resolve) => {
+        const child = spawn(
+          "docker",
+          ["compose", "-p", COMPOSE_PROJECT, "-f", COMPOSE_FILE, "run", "--rm", "--build", service],
+          { stdio: "pipe" },
+        );
+        let output = "";
+        child.stdout.on("data", (d) => {
+          output += d;
+        });
+        child.stderr.on("data", (d) => {
+          output += d;
+        });
+        child.on("close", (code) => {
+          completed++;
+          const ok = code === 0;
+          log(`  ${service} ... ${ok ? "PASS" : "FAIL"}  (${completed}/${total})`);
+          if (!ok) {
+            dockerErrors.push({ service, output });
+            failed = true;
+          }
+          resolve({ service, ok, output });
+        });
+      });
+
+    log(`  building and running ${total} containers in parallel...`);
+    await Promise.allSettled(services.map(runService));
   }
 }
 
 // -- Final result -------------------------------------------------------------
 
+if (dockerErrors.length > 0) {
+  log("\n── DOCKER ERRORS ──");
+  for (const err of dockerErrors) {
+    log(`\n✗ ${err.service}:`);
+    const lines = err.output.split("\n").slice(-20);
+    log(lines.join("\n"));
+  }
+}
+
+cleanup();
+
 log("");
 if (failed) {
   log("RESULT: SOME TESTS FAILED");
   process.exit(1);
-} else {
-  log("RESULT: ALL TESTS PASSED");
 }
+log("RESULT: ALL TESTS PASSED");
+process.exit(0);
