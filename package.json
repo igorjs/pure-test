@@ -45,7 +45,7 @@
     "url": "git+https://github.com/igorjs/pure-test.git"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.0.0",
+    "@biomejs/biome": "^2.4.14",
     "typescript": "^5.7.0"
   }
 }
