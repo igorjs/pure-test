@@ -48,9 +48,17 @@
   ],
   "author": "igorjs <oss@mail.igorjs.io>",
   "license": "Apache-2.0",
+  "homepage": "https://github.com/igorjs/pure-test#readme",
+  "bugs": {
+    "url": "https://github.com/igorjs/pure-test/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/igorjs/pure-test.git"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/igorjs"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.14",

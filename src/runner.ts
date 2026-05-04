@@ -11,7 +11,7 @@ import type { RunSummary, Suite, Test, TestResult } from "./types.js";
 
 declare const performance: { now(): number } | undefined;
 declare const console: { log(msg: string): void };
-declare function setTimeout(cb: () => void, ms: number): unknown;
+declare function queueMicrotask(cb: () => void): void;
 
 // ── Global state ────────────────────────────────────────────────────────────
 
@@ -46,15 +46,16 @@ export const setReporter = (nameOrReporter: string | Reporter): void => {
 
 /**
  * Schedule run() to fire after all synchronous module code completes.
- * Uses setTimeout(0) to defer to after all top-level describe/it calls.
  * Only fires in direct-execution mode, not when CLI controls execution.
  */
 const scheduleAutoRun = (): void => {
   if (autoRunScheduled || cliMode) return;
   autoRunScheduled = true;
-  setTimeout(() => {
-    void run();
-  }, 0);
+  queueMicrotask(() => {
+    run().catch(e => {
+      console.log(String(e));
+    });
+  });
 };
 
 // ── Registration API ────────────────────────────────────────────────────────
@@ -269,7 +270,6 @@ export const run = async (): Promise<RunSummary> => {
   };
 
   const reporter = activeReporter ?? getReporter("spec");
-  // biome-ignore lint/suspicious/noConsole: test runner output
   console.log(reporter.format(summary));
 
   // Exit with failure code if any tests failed

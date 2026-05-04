@@ -499,6 +499,10 @@ These features are intentionally excluded. Each one conflicts with our philosoph
 | Config files | Yes (`jest.config`) | Yes (`vitest.config`) | **Config parsing adds startup overhead** and a new thing to learn. CLI args cover everything. If you need project-specific settings, use npm scripts. |
 | Benchmark mode | No | Yes (`bench()`) | **Benchmarking is a different tool.** Use [mitata](https://github.com/evanwashere/mitata) or [tinybench](https://github.com/tinylibs/tinybench). Mixing tests and benchmarks in one runner conflates two concerns. |
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, coding standards, and how to submit changes.
+
 ## Disclaimer
 
 THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
