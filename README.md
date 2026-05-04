@@ -429,7 +429,71 @@ jest.spyOn(obj, 'method')
 jest.restoreAllMocks()
 ```
 
-These cover the spy/mock subset. Features like `vi.mock()`, `vi.useFakeTimers()`, and `jest.mock()` are intentionally not included (see [What Pure Test will never support](#what-pure-test-will-never-support)).
+These cover the spy/mock and fake timer subsets. Features like `vi.mock()` and `jest.mock()` are intentionally not included (see [What Pure Test will never support](#what-pure-test-will-never-support)).
+
+### Fake Timers
+
+Control time in your tests. Replaces `setTimeout`, `setInterval`, `Date`, and `performance.now()` with controllable fakes.
+
+```ts
+import { useFakeTimers, advanceTimersByTime, restoreAllMocks } from '@igorjs/pure-test'
+
+describe('debounce', () => {
+  afterEach(() => restoreAllMocks())  // also restores real timers
+
+  it('fires after delay', async () => {
+    useFakeTimers()
+    let fired = false
+    setTimeout(() => { fired = true }, 500)
+
+    await advanceTimersByTime(499)
+    expect(fired).toBe(false)
+
+    await advanceTimersByTime(1)
+    expect(fired).toBe(true)
+  })
+})
+```
+
+Also available via `vi.useFakeTimers()` / `jest.useFakeTimers()`.
+
+#### Configuration
+
+```ts
+useFakeTimers({
+  now: new Date('2025-01-01'),  // initial fake time (default: real Date.now())
+  toFake: ['setTimeout', 'Date'], // selective faking (default: all)
+  loopLimit: 10_000,            // max iterations for runAllTimers (default: 10000)
+})
+```
+
+Timer set/clear pairs are atomic: faking `setTimeout` also fakes `clearTimeout`.
+
+#### Timer Control
+
+```ts
+await advanceTimersByTime(1000) // advance clock, fire due callbacks
+await runAllTimers()            // drain queue (throws on infinite loop)
+await runOnlyPendingTimers()    // fire current queue, skip newly scheduled
+getTimerCount()                 // number of pending timers
+```
+
+All advancement functions are async and `await` each callback, so async timer callbacks complete before the function returns.
+
+#### Date Control
+
+```ts
+useFakeTimers({ now: new Date('2025-01-01') })
+Date.now()           // 1735689600000
+new Date()           // 2025-01-01T00:00:00.000Z
+new Date('2020-06-15') // passes through to real Date
+setSystemTime(new Date('2025-06-01'))  // change clock, don't fire timers
+getRealSystemTime()  // real Date.now(), bypasses fake
+```
+
+`new Date()` with no arguments returns fake time. `new Date(value)` passes through. `instanceof Date` works correctly.
+
+> **Note:** Fake timers use module-level state and should not be used with `describe.concurrent`.
 
 ### Bulk Operations
 
@@ -550,6 +614,8 @@ These features work the same way across all three frameworks. If you're using th
 | `describe.only` / `it.only` | Yes | Yes | Yes |
 | `it.todo` | Yes | Yes | Yes |
 | `it.each` (parameterised tests) | Yes | Yes | Yes |
+| `useFakeTimers` / `useRealTimers` | Yes | Yes | Yes |
+| `advanceTimersByTime` / `runAllTimers` | Yes | Yes | Yes |
 | `beforeAll` / `afterAll` | Yes | Yes | Yes |
 | `beforeEach` / `afterEach` | Yes | Yes | Yes |
 | `expect().toBe()` | Yes | Yes | Yes |
@@ -602,7 +668,6 @@ These features are intentionally excluded. Each one conflicts with our philosoph
 | Feature | Jest | Vitest | Why we skip it |
 |---------|------|--------|---------------|
 | Module mocking (`jest.mock` / `vi.mock`) | Yes | Yes | **Requires transform hooks** that intercept `import` statements at compile time. This is runtime-specific magic: Jest uses babel, Vitest uses Vite. There's no cross-runtime way to do it. Use dependency injection instead: pass dependencies as parameters, mock at the call site. |
-| Fake timers (`jest.useFakeTimers` / `vi.useFakeTimers`) | Yes | Yes | **Monkey-patches global `setTimeout`, `setInterval`, `Date`** at the runtime level. Different runtimes have different timer implementations (Node uses libuv, Deno uses Tokio, Bun uses its own). Mock specific timer functions with `spyFn()` when needed. |
 | Global stubbing (`vi.stubGlobal` / `vi.stubEnv`) | No | Yes | **Mutating globals is fragile** and leaks between tests. Pass globals as function parameters instead. |
 | Hoisted mocks (`vi.hoisted`) | No | Yes | **Only works with Vite's transform pipeline.** The concept doesn't exist without a bundler. |
 | Snapshot testing | Yes | Yes | **Requires file I/O** to read/write `.snap` files, which isn't available in Workers or browsers. Snapshots are also brittle: they pass when they shouldn't (accepting wrong output) and fail when they shouldn't (formatting changes). Write explicit assertions that document what you expect. |

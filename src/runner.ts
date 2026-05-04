@@ -7,9 +7,9 @@
  */
 
 import { getReporter, type Reporter } from "./reporters.js";
+import { getRealTime } from "./timers.js";
 import type { RunSummary, Suite, Test, TestResult } from "./types.js";
 
-declare const performance: { now(): number } | undefined;
 declare const console: { log(msg: string): void };
 declare function queueMicrotask(cb: () => void): void;
 
@@ -302,12 +302,7 @@ const formatEachName = (template: string, testCase: unknown, index: number): str
 
 // ── Timer ───────────────────────────────────────────────────────────────────
 
-const now = (): number => {
-  if (typeof performance !== "undefined" && typeof performance.now === "function") {
-    return performance.now();
-  }
-  return Date.now();
-};
+const now = (): number => getRealTime();
 
 // ── Execution ───────────────────────────────────────────────────────────────
 

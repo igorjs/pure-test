@@ -49,4 +49,15 @@ export {
   setReporter,
   test,
 } from "./runner.js";
+export type { FakeableAPI, FakeTimerConfig } from "./timers.js";
+export {
+  advanceTimersByTime,
+  getRealSystemTime,
+  getTimerCount,
+  runAllTimers,
+  runOnlyPendingTimers,
+  setSystemTime,
+  useFakeTimers,
+  useRealTimers,
+} from "./timers.js";
 export type { RunSummary, Suite, Test, TestResult } from "./types.js";

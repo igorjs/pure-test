@@ -11,6 +11,18 @@
  * `restoreAllMocks`, `clearAllMocks`, `resetAllMocks`.
  */
 
+import {
+  advanceTimersByTime,
+  getRealSystemTime,
+  getTimerCount,
+  restoreTimers,
+  runAllTimers,
+  runOnlyPendingTimers,
+  setSystemTime,
+  useFakeTimers,
+  useRealTimers,
+} from "./timers.js";
+
 // ── Types ───────────────────────────────────────────────────────────────────
 
 /** Result of a single mock invocation. */
@@ -321,10 +333,11 @@ export const mockDeep = <T extends Record<string, unknown>>(obj: T, seen?: Set<u
   return obj;
 };
 
-// ── restoreAllMocksMocks() ────────────────────────────────────────────────────────────
+// ── restoreAllMocks() ───────────────────────────────────────────────────────
 
-/** Restore all spied methods to their originals. */
+/** Restore all spied methods to their originals. Also restores real timers. */
 export const restoreAllMocks = (): void => {
+  restoreTimers();
   while (spyRegistry.length > 0) {
     const record = spyRegistry.pop()!;
     record.target[record.method] = record.original;
@@ -360,6 +373,14 @@ export const vi = {
   restoreAllMocks,
   clearAllMocks,
   resetAllMocks,
+  useFakeTimers,
+  useRealTimers,
+  advanceTimersByTime,
+  runAllTimers,
+  runOnlyPendingTimers,
+  getTimerCount,
+  setSystemTime,
+  getRealSystemTime,
 } as const;
 
 /**
@@ -373,4 +394,12 @@ export const jest = {
   restoreAllMocks,
   clearAllMocks,
   resetAllMocks,
+  useFakeTimers,
+  useRealTimers,
+  advanceTimersByTime,
+  runAllTimers,
+  runOnlyPendingTimers,
+  getTimerCount,
+  setSystemTime,
+  getRealSystemTime,
 } as const;

@@ -8,20 +8,26 @@
  */
 
 import {
+  advanceTimersByTime,
   afterEach,
   beforeAll,
   beforeEach,
   clearAllMocks,
   describe,
   expect,
+  getTimerCount,
   it,
   jest,
   mock,
   mockDeep,
   resetAllMocks,
   restoreAllMocks,
+  runAllTimers,
+  runOnlyPendingTimers,
+  setSystemTime,
   spyFn,
   spyOn,
+  useFakeTimers,
   vi,
 } from "../dist/index.js";
 
@@ -646,6 +652,192 @@ describe("it.each", () => {
 
   it.each(["hello", "world"])("string %# is %s", s => {
     expect(typeof s).toBe("string");
+  });
+});
+
+// ── useFakeTimers ────────────────────────────────────────────────────────────
+
+describe("useFakeTimers", () => {
+  afterEach(() => restoreAllMocks());
+
+  it("setTimeout fires after advanceTimersByTime", async () => {
+    useFakeTimers();
+    let called = false;
+    setTimeout(() => {
+      called = true;
+    }, 1000);
+    expect(called).toBe(false);
+    await advanceTimersByTime(1000);
+    expect(called).toBe(true);
+  });
+
+  it("setTimeout does not fire before its delay", async () => {
+    useFakeTimers();
+    let called = false;
+    setTimeout(() => {
+      called = true;
+    }, 1000);
+    await advanceTimersByTime(999);
+    expect(called).toBe(false);
+  });
+
+  it("setInterval fires repeatedly", async () => {
+    useFakeTimers();
+    let count = 0;
+    setInterval(() => {
+      count++;
+    }, 100);
+    await advanceTimersByTime(350);
+    expect(count).toBe(3);
+  });
+
+  it("clearTimeout prevents callback", async () => {
+    useFakeTimers();
+    let called = false;
+    const id = setTimeout(() => {
+      called = true;
+    }, 100);
+    clearTimeout(id);
+    await advanceTimersByTime(200);
+    expect(called).toBe(false);
+  });
+
+  it("clearInterval stops repeating", async () => {
+    useFakeTimers();
+    let count = 0;
+    const id = setInterval(() => {
+      count++;
+    }, 100);
+    await advanceTimersByTime(250);
+    clearInterval(id);
+    await advanceTimersByTime(200);
+    expect(count).toBe(2);
+  });
+
+  it("Date.now() returns fake time", () => {
+    useFakeTimers({ now: 1000 });
+    expect(Date.now()).toBe(1000);
+  });
+
+  it("new Date() returns fake time", () => {
+    useFakeTimers({ now: new Date("2025-06-15T00:00:00Z") });
+    const d = new Date();
+    expect(d.toISOString()).toBe("2025-06-15T00:00:00.000Z");
+  });
+
+  it("new Date(value) passes through", () => {
+    useFakeTimers({ now: 0 });
+    const d = new Date("2020-01-01T00:00:00Z");
+    expect(d.getFullYear()).toBe(2020);
+  });
+
+  it("performance.now() tracks fake clock", async () => {
+    useFakeTimers({ now: 0 });
+    const start = performance.now();
+    await advanceTimersByTime(500);
+    expect(performance.now() - start).toBe(500);
+  });
+
+  it("setSystemTime changes Date.now() without firing timers", () => {
+    useFakeTimers({ now: 0 });
+    let called = false;
+    setTimeout(() => {
+      called = true;
+    }, 100);
+    setSystemTime(5000);
+    expect(Date.now()).toBe(5000);
+    expect(called).toBe(false);
+  });
+
+  it("runAllTimers drains the queue", async () => {
+    useFakeTimers();
+    const order = [];
+    setTimeout(() => order.push("a"), 100);
+    setTimeout(() => order.push("b"), 50);
+    setTimeout(() => order.push("c"), 200);
+    await runAllTimers();
+    expect(order).toEqual(["b", "a", "c"]);
+  });
+
+  it("runOnlyPendingTimers does not fire recursive timers", async () => {
+    useFakeTimers();
+    let count = 0;
+    const tick = () => {
+      count++;
+      setTimeout(tick, 100);
+    };
+    setTimeout(tick, 100);
+    await runOnlyPendingTimers();
+    expect(count).toBe(1);
+  });
+
+  it("getTimerCount reflects queue size", () => {
+    useFakeTimers();
+    expect(getTimerCount()).toBe(0);
+    setTimeout(() => {
+      /* noop */
+    }, 100);
+    setTimeout(() => {
+      /* noop */
+    }, 200);
+    expect(getTimerCount()).toBe(2);
+    clearTimeout(1);
+    expect(getTimerCount()).toBe(1);
+  });
+
+  it("toFake: ['Date'] only fakes Date", async () => {
+    const realST = globalThis.setTimeout;
+    useFakeTimers({ now: 42, toFake: ["Date"] });
+    expect(Date.now()).toBe(42);
+    expect(globalThis.setTimeout).toBe(realST);
+  });
+
+  it("restoreAllMocks restores real timers", () => {
+    const realNow = Date.now();
+    useFakeTimers({ now: 0 });
+    expect(Date.now()).toBe(0);
+    restoreAllMocks();
+    expect(Date.now()).toBeGreaterThanOrEqual(realNow);
+  });
+
+  it("async callbacks complete before advancement returns", async () => {
+    useFakeTimers();
+    let value = 0;
+    setTimeout(async () => {
+      await Promise.resolve();
+      value = 42;
+    }, 100);
+    await advanceTimersByTime(100);
+    expect(value).toBe(42);
+  });
+
+  it("throws when advancing without install", async () => {
+    let error;
+    try {
+      await advanceTimersByTime(100);
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toContain("Fake timers not installed");
+  });
+
+  it("double useFakeTimers resets cleanly", () => {
+    useFakeTimers({ now: 100 });
+    expect(Date.now()).toBe(100);
+    useFakeTimers({ now: 200 });
+    expect(Date.now()).toBe(200);
+  });
+
+  it("vi.useFakeTimers works via namespace", async () => {
+    vi.useFakeTimers({ now: 0 });
+    let called = false;
+    setTimeout(() => {
+      called = true;
+    }, 50);
+    await vi.advanceTimersByTime(50);
+    expect(called).toBe(true);
+    vi.useRealTimers();
   });
 });
 

@@ -124,7 +124,7 @@ These Vitest features are intentionally omitted. The table explains why and what
 | Vitest feature | Why not | Alternative |
 |-------------|---------|-------------|
 | `vi.mock('module')` | Module mocking requires transform hooks that are runtime-specific | Use dependency injection: pass dependencies as parameters |
-| `vi.useFakeTimers()` | Complex timer interception, runtime-specific | Mock specific timer functions with `spyFn()` |
+| `vi.useFakeTimers()` | Supported | `useFakeTimers()` or `vi.useFakeTimers()` — same API |
 | `vi.stubGlobal()` | Mutating globals is fragile and hard to debug | Pass globals as function parameters |
 | `vi.hoisted()` | Only works with Vite's transform pipeline | Not needed without transforms |
 | `--coverage` | Requires V8 or Istanbul provider integration | Use [`c8`](https://github.com/bcoe/c8) or your runtime's built-in coverage |

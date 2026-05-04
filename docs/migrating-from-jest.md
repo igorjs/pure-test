@@ -103,7 +103,7 @@ These Jest features are intentionally omitted. The table explains why and what t
 | Jest feature | Why not | Alternative |
 |-------------|---------|-------------|
 | `jest.mock('module')` | Module mocking is runtime-specific magic that requires transforms | Use dependency injection: pass dependencies as parameters |
-| `jest.useFakeTimers()` | Complex, runtime-specific timer interception | Mock the specific timer functions you need with `spyFn()` |
+| `jest.useFakeTimers()` | Supported | `useFakeTimers()` or `jest.useFakeTimers()` — same API |
 | `jest.requireActual()` | Only needed alongside module mocking | Not needed when using dependency injection |
 | Snapshot testing | File I/O, brittle, hides intent, diffs are hard to review | Write explicit assertions that document expected behavior |
 | `--coverage` | Requires V8 or Istanbul integration | Use [`c8`](https://github.com/bcoe/c8) or your runtime's built-in coverage |
