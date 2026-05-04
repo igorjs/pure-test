@@ -21,6 +21,7 @@ import { readdir, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 const TEST_PATTERNS = [".test.mjs", ".test.js", ".spec.mjs", ".spec.js"];
+const VALID_REPORTERS = ["spec", "tap", "json", "minimal"];
 
 const isTestFile = (name) => TEST_PATTERNS.some((p) => name.endsWith(p));
 
@@ -45,7 +46,16 @@ function parseArgs(argv) {
 
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--reporter" || argv[i] === "-r") {
-      reporter = argv[++i] || "spec";
+      const value = argv[++i];
+      if (!value || value.startsWith("-")) {
+        console.error(`Error: ${argv[i - 1]} requires a value (${VALID_REPORTERS.join(", ")})`);
+        process.exit(1);
+      }
+      if (!VALID_REPORTERS.includes(value)) {
+        console.error(`Error: unknown reporter "${value}". Valid reporters: ${VALID_REPORTERS.join(", ")}`);
+        process.exit(1);
+      }
+      reporter = value;
     } else if (argv[i] === "--help" || argv[i] === "-h") {
       console.log(`
 pure-test - minimal cross-runtime test runner
