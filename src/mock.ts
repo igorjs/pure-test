@@ -1,12 +1,14 @@
 // Copyright 2026 igorjs. SPDX-License-Identifier: Apache-2.0
 
 /**
- * Mocking utilities with Vitest-compatible API.
+ * Mocking utilities with Vitest/Jest-compatible API.
  *
- * Drop-in replacement: change `import { vi } from 'vitest'` to
- * `import { vi } from '@igorjs/pure-test'` and everything works.
+ * Use the namespace drop-ins for easy migration:
+ *   `import { vi } from 'vitest'`      → `import { vi } from '@igorjs/pure-test'`
+ *   `import { jest } from '@jest/globals'` → `import { jest } from '@igorjs/pure-test'`
  *
- * Also exports individual functions: `fn`, `spyOn`, `mock`, `mockDeep`, `restoreAllMocks`.
+ * Or use the individual exports: `spyFn`, `spyOn`, `mock`, `mockDeep`,
+ * `restoreAllMocks`, `clearAllMocks`, `resetAllMocks`.
  */
 
 // ── Types ───────────────────────────────────────────────────────────────────
@@ -344,3 +346,31 @@ export const resetAllMocks = (): void => {
     (record.mock as MockFn).mockReset();
   }
 };
+
+// ── Namespace drop-ins ───────────────────────────────────────────────────────
+
+/**
+ * Vitest-compatible namespace. Covers the spy/mock subset.
+ *
+ * `import { vi } from '@igorjs/pure-test'`
+ */
+export const vi = {
+  fn: spyFn,
+  spyOn,
+  restoreAllMocks,
+  clearAllMocks,
+  resetAllMocks,
+} as const;
+
+/**
+ * Jest-compatible namespace. Covers the spy/mock subset.
+ *
+ * `import { jest } from '@igorjs/pure-test'`
+ */
+export const jest = {
+  fn: spyFn,
+  spyOn,
+  restoreAllMocks,
+  clearAllMocks,
+  resetAllMocks,
+} as const;

@@ -15,12 +15,14 @@ import {
   describe,
   expect,
   it,
+  jest,
   mock,
   mockDeep,
   resetAllMocks,
   restoreAllMocks,
   spyFn,
   spyOn,
+  vi,
 } from "../dist/index.js";
 
 // ── expect.toBe ─────────────────────────────────────────────────────────────
@@ -560,6 +562,90 @@ describe("mockDeep()", () => {
     expect(service.db.query()).toBe("mocked");
     restoreAllMocks();
     expect(service.db.query()).toBe("real");
+  });
+});
+
+// ── vi namespace ─────────────────────────────────────────────────────────────
+
+describe("vi namespace", () => {
+  afterEach(() => restoreAllMocks());
+
+  it("vi.fn() creates a spy", () => {
+    const spy = vi.fn();
+    spy(1, 2);
+    expect(spy.mock.calls).toHaveLength(1);
+    expect(spy.mock.calls[0]).toEqual([1, 2]);
+  });
+
+  it("vi.spyOn() spies on methods", () => {
+    const obj = { greet: name => `hi ${name}` };
+    vi.spyOn(obj, "greet");
+    obj.greet("world");
+    expect(obj.greet.mock.calls).toHaveLength(1);
+  });
+
+  it("vi.restoreAllMocks() restores originals", () => {
+    const obj = { val: () => 1 };
+    vi.spyOn(obj, "val").mockReturnValue(99);
+    expect(obj.val()).toBe(99);
+    vi.restoreAllMocks();
+    expect(obj.val()).toBe(1);
+  });
+});
+
+// ── jest namespace ───────────────────────────────────────────────────────────
+
+describe("jest namespace", () => {
+  afterEach(() => restoreAllMocks());
+
+  it("jest.fn() creates a spy", () => {
+    const spy = jest.fn();
+    spy("a");
+    expect(spy.mock.calls).toHaveLength(1);
+  });
+
+  it("jest.spyOn() spies on methods", () => {
+    const obj = { add: (a, b) => a + b };
+    jest.spyOn(obj, "add");
+    obj.add(2, 3);
+    expect(obj.add.mock.lastCall).toEqual([2, 3]);
+  });
+});
+
+// ── it.todo ──────────────────────────────────────────────────────────────────
+
+describe("todo", () => {
+  it.todo("planned feature");
+
+  it("this test still runs", () => {
+    expect(true).toBeTruthy();
+  });
+});
+
+// ── it.each (parameterised tests) ────────────────────────────────────────────
+
+describe("it.each", () => {
+  it.each([1, 2, 3])("doubles %d", n => {
+    expect(n * 2).toBeGreaterThan(n);
+  });
+
+  it.each([
+    [1, 2, 3],
+    [2, 3, 5],
+    [10, 20, 30],
+  ])("%d + %d = %d", (a, b, expected) => {
+    expect(a + b).toBe(expected);
+  });
+
+  it.each([
+    { a: 1, b: 2, sum: 3 },
+    { a: 4, b: 5, sum: 9 },
+  ])("$a + $b = $sum", ({ a, b, sum }) => {
+    expect(a + b).toBe(sum);
+  });
+
+  it.each(["hello", "world"])("string %# is %s", s => {
+    expect(typeof s).toBe("string");
   });
 });
 

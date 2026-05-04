@@ -22,6 +22,12 @@ const fullName = (r: TestResult): string => {
   return `${path}${r.name}`;
 };
 
+const summaryLine = (s: RunSummary): string => {
+  const parts = [`${s.passed} passed`, `${s.failed} failed`, `${s.skipped} skipped`];
+  if (s.todo > 0) parts.push(`${s.todo} todo`);
+  return `${parts.join(", ")} (${s.duration.toFixed(0)}ms)`;
+};
+
 // ── TAP ─────────────────────────────────────────────────────────────────────
 
 export const tap: Reporter = {
@@ -33,7 +39,9 @@ export const tap: Reporter = {
     for (let i = 0; i < summary.results.length; i++) {
       const r = summary.results[i]!;
       const name = fullName(r);
-      if (r.status === "skip") {
+      if (r.status === "todo") {
+        lines.push(`ok ${i + 1} - ${name} # TODO`);
+      } else if (r.status === "skip") {
         lines.push(`ok ${i + 1} - ${name} # SKIP`);
       } else if (r.status === "pass") {
         lines.push(`ok ${i + 1} - ${name}`);
@@ -50,6 +58,7 @@ export const tap: Reporter = {
     lines.push(`# pass ${summary.passed}`);
     lines.push(`# fail ${summary.failed}`);
     lines.push(`# skip ${summary.skipped}`);
+    lines.push(`# todo ${summary.todo}`);
     lines.push(`# duration ${summary.duration.toFixed(0)}ms`);
 
     return lines.join("\n");
@@ -78,6 +87,8 @@ export const spec: Reporter = {
       const indent = "  ".repeat(suitePath.length);
       if (r.status === "pass") {
         lines.push(`${indent}  pass  ${r.name} (${r.duration.toFixed(1)}ms)`);
+      } else if (r.status === "todo") {
+        lines.push(`${indent}  todo  ${r.name}`);
       } else if (r.status === "skip") {
         lines.push(`${indent}  skip  ${r.name}`);
       } else {
@@ -87,9 +98,7 @@ export const spec: Reporter = {
     }
 
     lines.push("");
-    lines.push(
-      `${summary.passed} passed, ${summary.failed} failed, ${summary.skipped} skipped (${summary.duration.toFixed(0)}ms)`,
-    );
+    lines.push(summaryLine(summary));
 
     return lines.join("\n");
   },
@@ -106,6 +115,7 @@ export const json: Reporter = {
         passed: summary.passed,
         failed: summary.failed,
         skipped: summary.skipped,
+        todo: summary.todo,
         duration: Math.round(summary.duration),
         results: summary.results.map(r => ({
           name: fullName(r),
@@ -125,7 +135,12 @@ export const minimal: Reporter = {
   name: "minimal",
   format: summary => {
     const dots = summary.results
-      .map(r => (r.status === "pass" ? "." : r.status === "skip" ? "s" : "F"))
+      .map(r => {
+        if (r.status === "pass") return ".";
+        if (r.status === "skip") return "s";
+        if (r.status === "todo") return "T";
+        return "F";
+      })
       .join("");
     const lines = [dots, ""];
 
@@ -137,9 +152,7 @@ export const minimal: Reporter = {
       lines.push("");
     }
 
-    lines.push(
-      `${summary.passed} passed, ${summary.failed} failed, ${summary.skipped} skipped (${summary.duration.toFixed(0)}ms)`,
-    );
+    lines.push(summaryLine(summary));
     return lines.join("\n");
   },
 };

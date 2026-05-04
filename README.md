@@ -83,8 +83,12 @@ npx pure-test tests/math.test.mjs        # single file
 describe(name, fn)              // define a suite (nestable)
 describe.concurrent(name, fn)   // suite with parallel test execution
 describe.skip(name, fn)         // skip a suite
+describe.only(name, fn)         // focus: only run this suite
 it(name, fn) / test(name, fn)   // define a test (sync or async)
 it.skip(name, fn)               // skip a test
+it.only(name, fn)               // focus: only run this test
+it.todo(name)                   // placeholder for a planned test
+it.each(cases)(name, fn)        // parameterised test from data
 ```
 
 ### Lifecycle Hooks
@@ -111,6 +115,93 @@ describe.concurrent('crypto operations', () => {
 ```
 
 Nested suites within a concurrent suite still run sequentially for predictability.
+
+### Focus Mode (`.only`)
+
+Use `.only` to run a single test or suite during debugging. All other tests are skipped:
+
+```ts
+describe('math', () => {
+  it.only('this one runs', () => {
+    expect(1 + 1).toBe(2)
+  })
+
+  it('this is skipped', () => {
+    expect(true).toBeTruthy()
+  })
+})
+```
+
+`describe.only` focuses an entire suite — all tests inside it run:
+
+```ts
+describe.only('focused suite', () => {
+  it('runs', () => { /* ... */ })
+  it('also runs', () => { /* ... */ })
+})
+
+describe('skipped suite', () => {
+  it('does not run', () => { /* ... */ })
+})
+```
+
+Multiple `.only` markers can coexist. Remember to remove them before committing.
+
+### Todo Tests
+
+Document planned tests without failing the suite:
+
+```ts
+describe('auth', () => {
+  it.todo('should handle token refresh')
+  it.todo('should revoke expired sessions')
+
+  it('logs in', () => {
+    // this test runs normally
+  })
+})
+```
+
+Todo tests appear in output with a `todo` label and are counted separately.
+
+### Parameterised Tests (`it.each`)
+
+Reduce duplication for data-driven tests:
+
+```ts
+// Scalar values
+it.each([1, 2, 3])('doubles %d', (n) => {
+  expect(n * 2).toBeGreaterThan(n)
+})
+
+// Tuple values (array elements are spread as arguments)
+it.each([
+  [1, 2, 3],
+  [2, 3, 5],
+  [10, 20, 30],
+])('%d + %d = %d', (a, b, expected) => {
+  expect(a + b).toBe(expected)
+})
+
+// Object values with $property interpolation
+it.each([
+  { input: 'hello', len: 5 },
+  { input: 'hi', len: 2 },
+])('$input has length $len', ({ input, len }) => {
+  expect(input).toHaveLength(len)
+})
+```
+
+**Name template specifiers:**
+
+| Specifier | Description |
+|-----------|-------------|
+| `%s` | String |
+| `%d`, `%f` | Number |
+| `%i` | Integer (floored) |
+| `%j`, `%o` | JSON |
+| `%#` | Test case index |
+| `$property` | Object property value |
 
 ### Assertions
 
@@ -316,6 +407,30 @@ restoreAllMocks()                 // restore all originals at every level
 
 Handles circular references safely.
 
+### Drop-in Namespaces (`vi` / `jest`)
+
+For easy migration, Pure Test exports `vi` and `jest` namespace objects that map to the built-in spy/mock functions:
+
+```ts
+// Vitest migration
+import { vi } from '@igorjs/pure-test'    // was: import { vi } from 'vitest'
+
+const spy = vi.fn()
+vi.spyOn(obj, 'method')
+vi.restoreAllMocks()
+vi.clearAllMocks()
+vi.resetAllMocks()
+
+// Jest migration
+import { jest } from '@igorjs/pure-test'  // was: import { jest } from '@jest/globals'
+
+const spy = jest.fn()
+jest.spyOn(obj, 'method')
+jest.restoreAllMocks()
+```
+
+These cover the spy/mock subset. Features like `vi.mock()`, `vi.useFakeTimers()`, and `jest.mock()` are intentionally not included (see [What Pure Test will never support](#what-pure-test-will-never-support)).
+
 ### Bulk Operations
 
 ```ts
@@ -419,7 +534,7 @@ Mock instance methods (`mockReturnValue`, `mockImplementation`, `mock.calls`, et
 | Bun | Yes | Partial | Partial |
 | Workers/Browser | Yes | No | No |
 | Transforms needed | No | Yes (babel/SWC) | Yes (esbuild/SWC) |
-| Mock API | Compatible | Jest API | vi namespace |
+| Mock API | `vi` + `jest` + individual | Jest API | vi namespace |
 
 ## Feature Comparison
 
@@ -432,6 +547,9 @@ These features work the same way across all three frameworks. If you're using th
 | `describe` / `it` / `test` | Yes | Yes | Yes |
 | `describe.concurrent` | Yes | No | Yes |
 | `describe.skip` / `it.skip` | Yes | Yes | Yes |
+| `describe.only` / `it.only` | Yes | Yes | Yes |
+| `it.todo` | Yes | Yes | Yes |
+| `it.each` (parameterised tests) | Yes | Yes | Yes |
 | `beforeAll` / `afterAll` | Yes | Yes | Yes |
 | `beforeEach` / `afterEach` | Yes | Yes | Yes |
 | `expect().toBe()` | Yes | Yes | Yes |
@@ -465,9 +583,6 @@ Features we plan to add. They're runtime-agnostic and practical.
 
 | Feature | Jest | Vitest | Why we want it |
 |---------|------|--------|---------------|
-| `it.only` / `describe.only` | Yes | Yes | Focus on a single test during debugging |
-| `it.todo` | Yes | Yes | Document planned tests without failing |
-| `it.each` (parameterised tests) | Yes | Yes | Reduce duplication for data-driven tests |
 | `expect().toHaveBeenCalled()` | Yes | Yes | Cleaner spy assertions than checking `mock.calls.length` |
 | `expect().toHaveBeenCalledWith()` | Yes | Yes | Assert specific call arguments |
 | `expect().toHaveBeenCalledTimes()` | Yes | Yes | Assert exact call count |

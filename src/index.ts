@@ -25,12 +25,14 @@ export { AssertionError, expect } from "./expect.js";
 export type { MockFn, MockResult } from "./mock.js";
 export {
   clearAllMocks,
+  jest,
   mock,
   mockDeep,
   resetAllMocks,
   restoreAllMocks,
   spyFn,
   spyOn,
+  vi,
 } from "./mock.js";
 export type { Reporter } from "./reporters.js";
 export { getReporter, json, minimal, spec, tap } from "./reporters.js";

@@ -9,6 +9,8 @@ export interface Test {
   readonly name: string;
   readonly fn: () => void | Promise<void>;
   readonly skip: boolean;
+  readonly todo: boolean;
+  readonly only: boolean;
 }
 
 /** A test suite (describe block). Can nest. */
@@ -21,13 +23,14 @@ export interface Suite {
   readonly beforeEach: Array<() => void | Promise<void>>;
   readonly afterEach: Array<() => void | Promise<void>>;
   readonly concurrent: boolean;
+  readonly only: boolean;
 }
 
 /** Result of running a single test. */
 export interface TestResult {
   readonly suite: readonly string[];
   readonly name: string;
-  readonly status: "pass" | "fail" | "skip";
+  readonly status: "pass" | "fail" | "skip" | "todo";
   readonly error?: unknown;
   readonly duration: number;
 }
@@ -38,5 +41,6 @@ export interface RunSummary {
   readonly passed: number;
   readonly failed: number;
   readonly skipped: number;
+  readonly todo: number;
   readonly duration: number;
 }
