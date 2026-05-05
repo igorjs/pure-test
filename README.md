@@ -227,6 +227,32 @@ expect(fn).toThrow(/pattern/)
 expect(spy).toHaveBeenCalled()           // called at least once
 expect(spy).toHaveBeenCalledTimes(n)     // called exactly n times
 expect(spy).toHaveBeenCalledWith(a, b)   // any call matches args (deep equality)
+expect(value).toMatchObject(subset)      // partial deep match
+expect(value).toHaveProperty('a.b', v)   // nested property exists, optional value
+expect(value).toStrictEqual(expected)    // deep equality + undefined props + constructors
+```
+
+#### Asymmetric Matchers
+
+Use inside `toEqual`, `toMatchObject`, `toHaveBeenCalledWith`, and other deep comparisons:
+
+```ts
+expect(42).toEqual(expect.any(Number))
+expect('hello').toEqual(expect.any(String))
+expect({ id: 1 }).toEqual(expect.anything())
+expect('hello world').toEqual(expect.stringContaining('world'))
+expect('abc-123').toEqual(expect.stringMatching(/\d+/))
+expect({ a: 1, b: 2 }).toEqual(expect.objectContaining({ a: 1 }))
+expect([1, 2, 3]).toEqual(expect.arrayContaining([3, 1]))
+```
+
+Composable: nest matchers freely:
+
+```ts
+expect(spy).toHaveBeenCalledWith(
+  expect.any(Number),
+  expect.objectContaining({ name: expect.any(String) })
+)
 ```
 
 All assertions support `.not`:
@@ -634,6 +660,10 @@ These features work the same way across all three frameworks. If you're using th
 | `expect().toHaveBeenCalled()` | Yes | Yes | Yes |
 | `expect().toHaveBeenCalledTimes()` | Yes | Yes | Yes |
 | `expect().toHaveBeenCalledWith()` | Yes | Yes | Yes |
+| `expect().toMatchObject()` | Yes | Yes | Yes |
+| `expect().toHaveProperty()` | Yes | Yes | Yes |
+| `expect().toStrictEqual()` | Yes | Yes | Yes |
+| `expect.any()` / asymmetric matchers | Yes | Yes | Yes |
 | `expect().not.*` | Yes | Yes | Yes |
 | `spyFn()` / `fn()` / `vi.fn()` | Yes | Yes | Yes |
 | `spyOn()` | Yes | Yes | Yes |
@@ -655,10 +685,6 @@ Features we plan to add. They're runtime-agnostic and practical.
 
 | Feature | Jest | Vitest | Why we want it |
 |---------|------|--------|---------------|
-| `expect().toMatchObject()` | Yes | Yes | Partial object matching for flexible assertions |
-| `expect().toHaveProperty()` | Yes | Yes | Assert nested property existence and value |
-| `expect().toStrictEqual()` | Yes | Yes | Equality that checks `undefined` properties and object types |
-| `expect.any()` / asymmetric matchers | Yes | Yes | Match by type instead of value: `expect.any(Number)` |
 | Getter/setter spying | Yes | Yes | `spyOn(obj, 'prop', 'get')` for property access |
 | Test timeout | Yes | Yes | `it('name', fn, 5000)` to fail slow tests |
 | `--grep` (test name filtering) | Yes | Yes | Run only tests matching a pattern |

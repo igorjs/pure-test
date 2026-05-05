@@ -722,6 +722,184 @@ describe("toHaveBeenCalledWith", () => {
   });
 });
 
+// ── toMatchObject ────────────────────────────────────────────────────────────
+
+describe("toMatchObject", () => {
+  it("passes when object contains subset", () => {
+    expect({ a: 1, b: 2, c: 3 }).toMatchObject({ a: 1, b: 2 });
+  });
+
+  it("fails when property value differs", () => {
+    expect(() => expect({ a: 1 }).toMatchObject({ a: 2 })).toThrow();
+  });
+
+  it("matches nested objects", () => {
+    expect({ a: { b: { c: 1 } }, d: 2 }).toMatchObject({ a: { b: { c: 1 } } });
+  });
+
+  it("matches arrays partially", () => {
+    expect([1, 2, 3]).toMatchObject([1, 2]);
+  });
+
+  it("not.toMatchObject passes for non-matching subset", () => {
+    expect({ a: 1 }).not.toMatchObject({ a: 2 });
+  });
+});
+
+// ── toHaveProperty ───────────────────────────────────────────────────────────
+
+describe("toHaveProperty", () => {
+  it("passes for existing property", () => {
+    expect({ a: 1 }).toHaveProperty("a");
+  });
+
+  it("passes for nested dot-path", () => {
+    expect({ a: { b: { c: 42 } } }).toHaveProperty("a.b.c");
+  });
+
+  it("checks value when provided", () => {
+    expect({ a: { b: 2 } }).toHaveProperty("a.b", 2);
+  });
+
+  it("fails for wrong value", () => {
+    expect(() => expect({ a: 1 }).toHaveProperty("a", 2)).toThrow();
+  });
+
+  it("fails for missing property", () => {
+    expect(() => expect({ a: 1 }).toHaveProperty("b")).toThrow();
+  });
+
+  it("accepts array path", () => {
+    expect({ a: { b: 1 } }).toHaveProperty(["a", "b"], 1);
+  });
+
+  it("not.toHaveProperty passes for missing key", () => {
+    expect({ a: 1 }).not.toHaveProperty("z");
+  });
+});
+
+// ── toStrictEqual ────────────────────────────────────────────────────────────
+
+describe("toStrictEqual", () => {
+  it("passes for identical objects", () => {
+    expect({ a: 1, b: 2 }).toStrictEqual({ a: 1, b: 2 });
+  });
+
+  it("fails when undefined properties differ", () => {
+    expect(() => expect({ a: 1, b: undefined }).toStrictEqual({ a: 1 })).toThrow();
+  });
+
+  it("fails for different constructors", () => {
+    class Foo {
+      constructor() {
+        this.x = 1;
+      }
+    }
+    const plain = { x: 1 };
+    const foo = new Foo();
+    expect(() => expect(foo).toStrictEqual(plain)).toThrow();
+  });
+
+  it("passes for matching class instances", () => {
+    class Bar {
+      constructor(v) {
+        this.v = v;
+      }
+    }
+    expect(new Bar(1)).toStrictEqual(new Bar(1));
+  });
+});
+
+// ── asymmetric matchers ──────────────────────────────────────────────────────
+
+describe("expect.any", () => {
+  it("matches by type", () => {
+    expect(42).toEqual(expect.any(Number));
+    expect("hello").toEqual(expect.any(String));
+    expect(true).toEqual(expect.any(Boolean));
+  });
+
+  it("matches class instances", () => {
+    expect(new Date()).toEqual(expect.any(Date));
+    expect(/abc/).toEqual(expect.any(RegExp));
+  });
+
+  it("fails for wrong type", () => {
+    expect(() => expect("str").toEqual(expect.any(Number))).toThrow();
+  });
+
+  it("works inside toMatchObject", () => {
+    expect({ id: 1, name: "Alice", createdAt: new Date() }).toMatchObject({
+      id: expect.any(Number),
+      name: expect.any(String),
+    });
+  });
+
+  it("works inside toHaveBeenCalledWith", () => {
+    const spy = spyFn();
+    spy(1, "hello", { key: "value" });
+    expect(spy).toHaveBeenCalledWith(expect.any(Number), expect.any(String), expect.any(Object));
+  });
+});
+
+describe("expect.anything", () => {
+  it("matches any defined value", () => {
+    expect(42).toEqual(expect.anything());
+    expect("str").toEqual(expect.anything());
+    expect({}).toEqual(expect.anything());
+  });
+
+  it("fails for null", () => {
+    expect(() => expect(null).toEqual(expect.anything())).toThrow();
+  });
+
+  it("fails for undefined", () => {
+    expect(() => expect(undefined).toEqual(expect.anything())).toThrow();
+  });
+});
+
+describe("expect.stringContaining", () => {
+  it("matches substring", () => {
+    expect("hello world").toEqual(expect.stringContaining("world"));
+  });
+
+  it("fails for missing substring", () => {
+    expect(() => expect("hello").toEqual(expect.stringContaining("xyz"))).toThrow();
+  });
+});
+
+describe("expect.stringMatching", () => {
+  it("matches regex", () => {
+    expect("hello-123").toEqual(expect.stringMatching(/\d+/));
+  });
+
+  it("matches string pattern", () => {
+    expect("abc-def").toEqual(expect.stringMatching("abc"));
+  });
+});
+
+describe("expect.objectContaining", () => {
+  it("matches subset of properties", () => {
+    expect({ a: 1, b: 2, c: 3 }).toEqual(expect.objectContaining({ a: 1, c: 3 }));
+  });
+
+  it("works nested", () => {
+    expect({ user: { name: "Alice", age: 30 } }).toEqual(
+      expect.objectContaining({ user: expect.objectContaining({ name: "Alice" }) }),
+    );
+  });
+});
+
+describe("expect.arrayContaining", () => {
+  it("matches subset in any order", () => {
+    expect([1, 2, 3, 4]).toEqual(expect.arrayContaining([3, 1]));
+  });
+
+  it("fails when element missing", () => {
+    expect(() => expect([1, 2]).toEqual(expect.arrayContaining([3]))).toThrow();
+  });
+});
+
 // ── useFakeTimers ────────────────────────────────────────────────────────────
 
 describe("useFakeTimers", () => {
