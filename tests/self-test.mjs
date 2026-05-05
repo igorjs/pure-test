@@ -744,19 +744,57 @@ describe("toBeEmail", () => {
 // ── toBeUUID ─────────────────────────────────────────────────────────────────
 
 describe("toBeUUID", () => {
-  it("passes for any valid UUID", () => {
-    expect("550e8400-e29b-41d4-a716-446655440000").toBeUUID();
+  // RFC 9562 Appendix A test vectors
+  it("validates UUIDv1 (RFC 9562 A.1)", () => {
+    expect("C232AB00-9414-11EC-B3C8-9F6BDECED846").toBeUUID(1);
   });
 
-  it("passes for specific version", () => {
-    expect("550e8400-e29b-41d4-a716-446655440000").toBeUUID(4);
+  it("validates UUIDv3 (RFC 9562 A.2)", () => {
+    expect("5df41881-3aed-3515-88a7-2f4a814cf09e").toBeUUID(3);
+  });
+
+  it("validates UUIDv4 (RFC 9562 A.3)", () => {
+    expect("919108f7-52d1-4320-9bac-f847db4148a8").toBeUUID(4);
+  });
+
+  it("validates UUIDv5 (RFC 9562 A.4)", () => {
+    expect("2ed6657d-e927-568b-95e1-2665a8aea6a2").toBeUUID(5);
+  });
+
+  it("validates UUIDv6 (RFC 9562 A.5)", () => {
+    expect("1EC9414C-232A-6B00-B3C8-9F6BDECED846").toBeUUID(6);
+  });
+
+  it("validates UUIDv7 (RFC 9562 A.6)", () => {
+    expect("017F22E2-79B0-7CC3-98C4-DC0C0C07398F").toBeUUID(7);
+  });
+
+  it("passes for any valid UUID without version", () => {
+    expect("550e8400-e29b-41d4-a716-446655440000").toBeUUID();
   });
 
   it("fails for wrong version", () => {
     expect(() => expect("550e8400-e29b-41d4-a716-446655440000").toBeUUID(1)).toThrow();
   });
 
-  it("fails for invalid UUID format", () => {
+  it("fails for invalid variant nibble", () => {
+    // variant nibble 0x3 is not RFC 9562 (10xx requires 8-B)
+    expect(() => expect("550e8400-e29b-41d4-3716-446655440000").toBeUUID()).toThrow();
+  });
+
+  it("accepts Nil UUID", () => {
+    expect("00000000-0000-0000-0000-000000000000").toBeUUID();
+  });
+
+  it("accepts Max UUID", () => {
+    expect("FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF").toBeUUID();
+  });
+
+  it("Nil UUID fails with version filter", () => {
+    expect(() => expect("00000000-0000-0000-0000-000000000000").toBeUUID(4)).toThrow();
+  });
+
+  it("fails for invalid format", () => {
     expect(() => expect("not-a-uuid").toBeUUID()).toThrow();
     expect(() => expect(12345).toBeUUID()).toThrow();
   });
@@ -786,21 +824,25 @@ describe("expect.email", () => {
 
 describe("expect.uuid", () => {
   it("matches any UUID", () => {
-    expect("550e8400-e29b-41d4-a716-446655440000").toEqual(expect.uuid());
+    expect("919108f7-52d1-4320-9bac-f847db4148a8").toEqual(expect.uuid());
   });
 
   it("matches specific version", () => {
-    expect("550e8400-e29b-41d4-a716-446655440000").toEqual(expect.uuid(4));
+    expect("919108f7-52d1-4320-9bac-f847db4148a8").toEqual(expect.uuid(4));
+  });
+
+  it("matches UUIDv7", () => {
+    expect("017F22E2-79B0-7CC3-98C4-DC0C0C07398F").toEqual(expect.uuid(7));
   });
 
   it("works inside toMatchObject", () => {
-    expect({ id: "550e8400-e29b-41d4-a716-446655440000", name: "Item" }).toMatchObject({
+    expect({ id: "919108f7-52d1-4320-9bac-f847db4148a8", name: "Item" }).toMatchObject({
       id: expect.uuid(4),
     });
   });
 
   it("fails for wrong version", () => {
-    expect(() => expect("550e8400-e29b-41d4-a716-446655440000").toEqual(expect.uuid(1))).toThrow();
+    expect(() => expect("919108f7-52d1-4320-9bac-f847db4148a8").toEqual(expect.uuid(1))).toThrow();
   });
 });
 

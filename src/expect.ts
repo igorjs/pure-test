@@ -36,16 +36,34 @@ const isAsymmetric = (v: unknown): v is AsymmetricMatcher =>
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const UUID_BASE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// RFC 9562 UUID format: xxxxxxxx-xxxx-Vxxx-Nxxx-xxxxxxxxxxxx
+//   V = version (position 14): 1-8 for standard UUIDs
+//   N = variant (position 19): 8,9,a,b for RFC 9562 variant (10xx)
+// Nil UUID (all zeros) and Max UUID (all F's) are valid special cases.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+const MAX_UUID = "ffffffff-ffff-ffff-ffff-ffffffffffff";
 
 const isUUID = (v: unknown, version?: number): boolean => {
   if (typeof v !== "string") return false;
-  if (!UUID_BASE_RE.test(v)) return false;
-  if (version !== undefined) {
-    // Version is the 13th character (index 14 with hyphens: position after 2nd hyphen)
-    const vChar = v[14];
-    return vChar === String(version);
-  }
+  if (!UUID_RE.test(v)) return false;
+
+  // Nil and Max UUIDs are valid when no version is specified
+  const lower = v.toLowerCase();
+  if (lower === NIL_UUID || lower === MAX_UUID) return version === undefined;
+
+  // Version: position 14 (bits 48-51), valid values 1-8 per RFC 9562 Table 2
+  const vChar = v[14]!;
+  const ver = Number.parseInt(vChar, 16);
+  if (ver < 1 || ver > 8) return false;
+
+  // Variant: position 19 (bits 64-65), must be 10xx (0x8-0xB) per RFC 9562 Section 4.1
+  const nChar = v[19]!;
+  const variant = Number.parseInt(nChar, 16);
+  if (variant < 0x8 || variant > 0xb) return false;
+
+  // Version filter
+  if (version !== undefined) return ver === version;
   return true;
 };
 
