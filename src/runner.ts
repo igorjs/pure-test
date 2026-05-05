@@ -42,6 +42,8 @@ let cliMode = false;
 let hasOnly = false;
 let activeReporter: Reporter | undefined;
 let grepPattern: RegExp | undefined;
+let bailOnFailure = false;
+let bailed = false;
 
 /** Mark that run() will be called externally (by CLI). Disables auto-run. */
 export const setCLIMode = (): void => {
@@ -52,6 +54,11 @@ export const setCLIMode = (): void => {
 export const setReporter = (nameOrReporter: string | Reporter): void => {
   activeReporter =
     typeof nameOrReporter === "string" ? getReporter(nameOrReporter) : nameOrReporter;
+};
+
+/** Stop running tests after the first failure. */
+export const setBail = (enabled = true): void => {
+  bailOnFailure = enabled;
 };
 
 /** Filter tests by name pattern. Matches against the full name (describe > test). */
@@ -423,6 +430,30 @@ const runTest = async (
   return { suite: suitePath, name: t.name, status: "fail", error: lastError, duration: 0 };
 };
 
+const runSuiteTests = async (
+  tests: readonly Test[],
+  suitePath: readonly string[],
+  beforeEach: ReadonlyArray<() => void | Promise<void>>,
+  afterEach: ReadonlyArray<() => void | Promise<void>>,
+  effectiveOnly: boolean,
+  concurrent: boolean,
+): Promise<TestResult[]> => {
+  if (concurrent) {
+    const promises = tests.map(t => runTest(t, suitePath, beforeEach, afterEach, effectiveOnly));
+    return Promise.all(promises);
+  }
+  const results: TestResult[] = [];
+  for (const t of tests) {
+    if (bailed) break;
+    const result = await runTest(t, suitePath, beforeEach, afterEach, effectiveOnly);
+    results.push(result);
+    if (bailOnFailure && result.status === "fail") {
+      bailed = true;
+    }
+  }
+  return results;
+};
+
 const runSuite = async (
   suite: Suite,
   path: readonly string[],
@@ -437,25 +468,24 @@ const runSuite = async (
   const allBeforeEach = [...parentBeforeEach, ...suite.beforeEach];
   const allAfterEach = [...suite.afterEach, ...parentAfterEach];
 
-  // Run beforeAll hooks
   for (const hook of suite.beforeAll) {
     await hook();
   }
 
-  // Run tests: concurrent or sequential
-  if (suite.concurrent) {
-    const promises = suite.tests.map(t =>
-      runTest(t, suitePath, allBeforeEach, allAfterEach, effectiveOnly),
-    );
-    results.push(...(await Promise.all(promises)));
-  } else {
-    for (const t of suite.tests) {
-      results.push(await runTest(t, suitePath, allBeforeEach, allAfterEach, effectiveOnly));
-    }
-  }
+  results.push(
+    ...(await runSuiteTests(
+      suite.tests,
+      suitePath,
+      allBeforeEach,
+      allAfterEach,
+      effectiveOnly,
+      suite.concurrent,
+    )),
+  );
 
   // Run nested suites (always sequential: suite ordering should be predictable)
   for (const child of suite.suites) {
+    if (bailed) break;
     // Skip child suites that have no .only relevance when filtering is active
     if (hasOnly && !effectiveOnly && !suiteContainsOnly(child)) {
       continue;
@@ -490,6 +520,7 @@ const runSuite = async (
  * Returns the summary for programmatic use.
  */
 export const run = async (): Promise<RunSummary> => {
+  bailed = false;
   const start = now();
   const results = await runSuite(rootSuite, [], [], [], false);
 
@@ -535,4 +566,6 @@ export const reset = (): void => {
   autoRunScheduled = false;
   hasOnly = false;
   grepPattern = undefined;
+  bailOnFailure = false;
+  bailed = false;
 };

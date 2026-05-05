@@ -44,6 +44,7 @@ function parseArgs(argv) {
   const targets = [];
   let reporter = "spec";
   let grep = undefined;
+  let bail = false;
 
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--reporter" || argv[i] === "-r") {
@@ -64,6 +65,8 @@ function parseArgs(argv) {
         process.exit(1);
       }
       grep = value;
+    } else if (argv[i] === "--bail" || argv[i] === "-b") {
+      bail = true;
     } else if (argv[i] === "--help" || argv[i] === "-h") {
       console.log(`
 pure-test - minimal cross-runtime test runner
@@ -75,6 +78,7 @@ OPTIONS:
   --reporter, -r <name>      Output format: spec (default), tap, json, minimal
   --grep, -g <pattern>       Run only tests matching pattern (regex)
   --testNamePattern, -t      Alias for --grep (Jest/Vitest compatible)
+  --bail, -b                 Stop after first test failure
   --help, -h                 Show this help
 
 EXAMPLES:
@@ -90,11 +94,11 @@ EXAMPLES:
     }
   }
 
-  return { targets: targets.length > 0 ? targets : ["."], reporter, grep };
+  return { targets: targets.length > 0 ? targets : ["."], reporter, grep, bail };
 }
 
 async function main() {
-  const { targets, reporter, grep } = parseArgs(process.argv.slice(2));
+  const { targets, reporter, grep, bail } = parseArgs(process.argv.slice(2));
 
   // Collect all test files
   const testFiles = [];
@@ -125,10 +129,11 @@ async function main() {
   console.error("");
 
   // Import the runner and set CLI mode
-  const { setCLIMode, setGrep, setReporter, run } = await import("../dist/index.js");
+  const { setBail, setCLIMode, setGrep, setReporter, run } = await import("../dist/index.js");
   setCLIMode();
   setReporter(reporter);
   if (grep) setGrep(grep);
+  if (bail) setBail();
 
   // Import all test files (tests register during import)
   for (const file of testFiles) {

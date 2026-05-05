@@ -45,6 +45,7 @@ export {
   it,
   reset,
   run,
+  setBail,
   setCLIMode,
   setGrep,
   setReporter,
