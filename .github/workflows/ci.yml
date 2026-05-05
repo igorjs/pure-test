@@ -12,25 +12,80 @@ permissions:
 jobs:
   lint-and-test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22, 24, 25]
     steps:
       - uses: actions/checkout@v6
       - run: corepack enable
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: ${{ matrix.node-version }}
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
 
       - name: Lint & format
+        if: matrix.node-version == 24
         run: pnpm run lint
 
       - name: Type-check
+        if: matrix.node-version == 24
         run: pnpm run check
 
       - name: Build
         run: pnpm run build
 
-      - name: Unit tests
+      - name: Unit tests (Node)
         run: pnpm test
+
+      - name: Only tests
+        run: node tests/only-test.mjs
+
+      - name: Grep tests
+        run: node tests/grep-test.mjs
+
+      - name: Upload dist
+        if: matrix.node-version == 24
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 1
+
+  test-deno:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Unit tests (Deno)
+        run: deno run --allow-all tests/self-test.mjs
+
+  test-bun:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Unit tests (Bun)
+        run: bun tests/self-test.mjs
