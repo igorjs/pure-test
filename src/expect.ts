@@ -225,6 +225,10 @@ export interface Expectation<T> {
   // ── Container matchers ──
   toContain(expected: unknown): void;
   toContainEqual(expected: unknown): void;
+  /** Assert array matches exactly (same elements, same order, same length). */
+  toMatchArray(expected: readonly unknown[]): void;
+  /** Assert array contains the same elements regardless of order (multiset equality). */
+  toMatchUnsortedArray(expected: readonly unknown[]): void;
   toMatch(pattern: RegExp | string): void;
   toHaveLength(expected: number): void;
   toMatchObject(expected: Record<string, unknown>): void;
@@ -459,6 +463,38 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
       }
       const match = actual.some(item => deepEqual(item, expected));
       assert(match, `array to contain equal ${format(expected)}`, expected);
+    },
+
+    toMatchArray(expected: readonly unknown[]) {
+      if (!Array.isArray(actual)) {
+        throw new AssertionError("toMatchArray requires an array", actual, expected);
+      }
+      assert(
+        deepEqual(actual, expected),
+        `${format(actual)} to match array ${format(expected)}`,
+        expected,
+      );
+    },
+
+    toMatchUnsortedArray(expected: readonly unknown[]) {
+      if (!Array.isArray(actual)) {
+        throw new AssertionError("toMatchUnsortedArray requires an array", actual, expected);
+      }
+      if (actual.length !== expected.length) {
+        assert(false, `array length ${actual.length} to be ${expected.length}`, expected);
+        return;
+      }
+      // Multiset equality: each expected element must match exactly one actual element
+      const used = new Array<boolean>(actual.length).fill(false);
+      for (const exp of expected) {
+        const idx = actual.findIndex((item, i) => !used[i] && deepEqual(item, exp));
+        if (idx === -1) {
+          assert(false, `${format(actual)} to contain ${format(exp)} (unordered)`, expected);
+          return;
+        }
+        used[idx] = true;
+      }
+      assert(true, "", expected);
     },
 
     toMatch(pattern: RegExp | string) {

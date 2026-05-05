@@ -801,6 +801,74 @@ describe("toContainEqual", () => {
   });
 });
 
+// ── toMatchArray ─────────────────────────────────────────────────────────────
+
+describe("toMatchArray", () => {
+  it("passes for exact array match", () => {
+    expect([1, 2, 3]).toMatchArray([1, 2, 3]);
+  });
+
+  it("fails for different order", () => {
+    expect(() => expect([1, 2, 3]).toMatchArray([3, 2, 1])).toThrow();
+  });
+
+  it("fails for different length", () => {
+    expect(() => expect([1, 2]).toMatchArray([1, 2, 3])).toThrow();
+  });
+
+  it("uses deep equality", () => {
+    expect([{ a: 1 }, { b: 2 }]).toMatchArray([{ a: 1 }, { b: 2 }]);
+  });
+
+  it("throws for non-array actual", () => {
+    expect(() => expect("not array").toMatchArray([1])).toThrow("requires an array");
+  });
+
+  it("not.toMatchArray passes for different arrays", () => {
+    expect([1, 2]).not.toMatchArray([2, 1]);
+  });
+});
+
+// ── toMatchUnsortedArray ─────────────────────────────────────────────────────
+
+describe("toMatchUnsortedArray", () => {
+  it("passes for same elements in different order", () => {
+    expect([3, 1, 2]).toMatchUnsortedArray([1, 2, 3]);
+  });
+
+  it("handles duplicates with count enforcement", () => {
+    expect([1, 1, 2]).toMatchUnsortedArray([2, 1, 1]);
+  });
+
+  it("fails when duplicate counts differ", () => {
+    expect(() => expect([1, 1, 2]).toMatchUnsortedArray([1, 2, 2])).toThrow();
+  });
+
+  it("fails for different length", () => {
+    expect(() => expect([1, 2]).toMatchUnsortedArray([1, 2, 3])).toThrow();
+  });
+
+  it("uses deep equality for objects", () => {
+    expect([{ a: 1 }, { b: 2 }]).toMatchUnsortedArray([{ b: 2 }, { a: 1 }]);
+  });
+
+  it("throws for non-array actual", () => {
+    expect(() => expect(42).toMatchUnsortedArray([1])).toThrow("requires an array");
+  });
+
+  it("not.toMatchUnsortedArray passes when contents differ", () => {
+    expect([1, 2, 3]).not.toMatchUnsortedArray([1, 2, 4]);
+  });
+
+  it("supports asymmetric matchers", () => {
+    expect([1, "hello", true]).toMatchUnsortedArray([
+      expect.any(Boolean),
+      expect.any(Number),
+      expect.any(String),
+    ]);
+  });
+});
+
 // ── toMatch with string ──────────────────────────────────────────────────────
 
 describe("toMatch with string", () => {
