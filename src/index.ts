@@ -46,6 +46,7 @@ export {
   reset,
   run,
   setCLIMode,
+  setGrep,
   setReporter,
   test,
 } from "./runner.js";

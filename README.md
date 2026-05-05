@@ -59,8 +59,10 @@ bun tests/math.test.mjs
 pure-test [paths...] [options]
 
 Options:
-  --reporter, -r <name>   Output format: spec (default), tap, json, minimal
-  --help, -h              Show help
+  --reporter, -r <name>      Output format: spec (default), tap, json, minimal
+  --grep, -g <pattern>       Run only tests matching pattern (regex)
+  --testNamePattern, -t      Alias for --grep (Jest/Vitest compatible)
+  --help, -h                 Show help
 
 Discovers: *.test.mjs, *.test.js, *.spec.mjs, *.spec.js
 ```
@@ -73,6 +75,8 @@ npx pure-test tests/ --reporter tap      # TAP output
 npx pure-test tests/ --reporter json     # JSON output
 npx pure-test tests/ --reporter minimal  # dots output
 npx pure-test tests/math.test.mjs        # single file
+npx pure-test tests/ --grep "auth"       # only tests matching "auth"
+npx pure-test tests/ -t "User.*login"    # regex pattern (Jest/Vitest compatible)
 ```
 
 ## API Reference
@@ -701,6 +705,7 @@ These features work the same way across all three frameworks. If you're using th
 | `.not` / `.resolves` / `.rejects` modifiers | Yes | Yes | Yes |
 | `spyOn(obj, 'prop', 'get'\|'set')` | Yes | Yes | Yes |
 | Test timeout `it('name', fn, 5000)` | Yes | Yes | Yes |
+| `--grep` / `-t` test name filtering | Yes (Mocha) | Yes | Yes |
 | `spyFn()` / `fn()` / `vi.fn()` | Yes | Yes | Yes |
 | `spyOn()` | Yes | Yes | Yes |
 | `mockReturnValue` / `mockReturnValueOnce` | Yes | Yes | Yes |
@@ -714,15 +719,6 @@ These features work the same way across all three frameworks. If you're using th
 | Multiple reporters (TAP, JSON, spec, minimal) | Yes | Via packages | Via packages |
 | Custom reporters | Yes | Via packages | Via packages |
 | Async test support | Yes | Yes | Yes |
-
-### What Pure Test doesn't support (yet)
-
-Features we plan to add. They're runtime-agnostic and practical.
-
-| Feature | Jest | Vitest | Why we want it |
-|---------|------|--------|---------------|
-| `--grep` (test name filtering) | Yes | Yes | Run only tests matching a pattern |
-| Test retry | No | Yes | Re-run flaky tests N times before failing |
 
 ### What Pure Test will never support
 

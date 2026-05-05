@@ -43,6 +43,7 @@ async function discoverTests(dir) {
 function parseArgs(argv) {
   const targets = [];
   let reporter = "spec";
+  let grep = undefined;
 
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--reporter" || argv[i] === "-r") {
@@ -56,6 +57,13 @@ function parseArgs(argv) {
         process.exit(1);
       }
       reporter = value;
+    } else if (argv[i] === "--grep" || argv[i] === "-g" || argv[i] === "--testNamePattern" || argv[i] === "-t") {
+      const value = argv[++i];
+      if (!value || value.startsWith("-")) {
+        console.error(`Error: ${argv[i - 1]} requires a pattern`);
+        process.exit(1);
+      }
+      grep = value;
     } else if (argv[i] === "--help" || argv[i] === "-h") {
       console.log(`
 pure-test - minimal cross-runtime test runner
@@ -64,12 +72,16 @@ USAGE:
   pure-test [paths...] [options]
 
 OPTIONS:
-  --reporter, -r <name>   Output format: spec (default), tap, json, minimal
-  --help, -h              Show this help
+  --reporter, -r <name>      Output format: spec (default), tap, json, minimal
+  --grep, -g <pattern>       Run only tests matching pattern (regex)
+  --testNamePattern, -t      Alias for --grep (Jest/Vitest compatible)
+  --help, -h                 Show this help
 
 EXAMPLES:
   pure-test tests/
   pure-test tests/ --reporter tap
+  pure-test tests/ --grep "auth"
+  pure-test tests/ -t "User.*login"
   pure-test tests/math.test.mjs tests/string.test.mjs
 `);
       process.exit(0);
@@ -78,11 +90,11 @@ EXAMPLES:
     }
   }
 
-  return { targets: targets.length > 0 ? targets : ["."], reporter };
+  return { targets: targets.length > 0 ? targets : ["."], reporter, grep };
 }
 
 async function main() {
-  const { targets, reporter } = parseArgs(process.argv.slice(2));
+  const { targets, reporter, grep } = parseArgs(process.argv.slice(2));
 
   // Collect all test files
   const testFiles = [];
@@ -113,9 +125,10 @@ async function main() {
   console.error("");
 
   // Import the runner and set CLI mode
-  const { setCLIMode, setReporter, run } = await import("../dist/index.js");
+  const { setCLIMode, setGrep, setReporter, run } = await import("../dist/index.js");
   setCLIMode();
   setReporter(reporter);
+  if (grep) setGrep(grep);
 
   // Import all test files (tests register during import)
   for (const file of testFiles) {

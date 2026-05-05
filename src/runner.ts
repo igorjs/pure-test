@@ -41,6 +41,7 @@ let autoRunScheduled = false;
 let cliMode = false;
 let hasOnly = false;
 let activeReporter: Reporter | undefined;
+let grepPattern: RegExp | undefined;
 
 /** Mark that run() will be called externally (by CLI). Disables auto-run. */
 export const setCLIMode = (): void => {
@@ -51,6 +52,11 @@ export const setCLIMode = (): void => {
 export const setReporter = (nameOrReporter: string | Reporter): void => {
   activeReporter =
     typeof nameOrReporter === "string" ? getReporter(nameOrReporter) : nameOrReporter;
+};
+
+/** Filter tests by name pattern. Matches against the full name (describe > test). */
+export const setGrep = (pattern: string | RegExp): void => {
+  grepPattern = typeof pattern === "string" ? new RegExp(pattern) : pattern;
 };
 
 // ── Auto-run scheduling ─────────────────────────────────────────────────────
@@ -323,6 +329,18 @@ const formatEachName = (template: string, testCase: unknown, index: number): str
 
 const now = (): number => getRealTime();
 
+// ── Test filtering helpers ──────────────────────────────────────────────────
+
+const shouldSkip = (t: Test, suitePath: readonly string[], insideOnly: boolean): boolean => {
+  if (t.todo || t.skip) return false; // handled separately
+  if (hasOnly && !insideOnly && !t.only) return true;
+  if (grepPattern) {
+    const fullName = suitePath.length > 0 ? `${suitePath.join(" > ")} > ${t.name}` : t.name;
+    if (!grepPattern.test(fullName)) return true;
+  }
+  return false;
+};
+
 // ── Timeout helper ──────────────────────────────────────────────────────────
 
 const raceTimeout = (fn: () => void | Promise<void>, ms: number, name: string): Promise<void> => {
@@ -371,11 +389,7 @@ const runTest = async (
   if (t.todo) {
     return { suite: suitePath, name: t.name, status: "todo", duration: 0 };
   }
-  if (t.skip) {
-    return { suite: suitePath, name: t.name, status: "skip", duration: 0 };
-  }
-  // .only filtering: if any .only exists and this test isn't covered, skip it
-  if (hasOnly && !insideOnly && !t.only) {
+  if (t.skip || shouldSkip(t, suitePath, insideOnly)) {
     return { suite: suitePath, name: t.name, status: "skip", duration: 0 };
   }
 
@@ -520,4 +534,5 @@ export const reset = (): void => {
   rootSuite.afterEach.length = 0;
   autoRunScheduled = false;
   hasOnly = false;
+  grepPattern = undefined;
 };
