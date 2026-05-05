@@ -9,7 +9,15 @@
 import { checkAssertionState, resetAssertionState } from "./expect.js";
 import { getReporter, type Reporter } from "./reporters.js";
 import { getRealClearTimeout, getRealSetTimeout, getRealTime } from "./timers.js";
-import type { RunSummary, Suite, Test, TestResult } from "./types.js";
+import type { RunSummary, Suite, Test, TestOptions, TestResult } from "./types.js";
+
+const parseTestOptions = (
+  optionsOrTimeout?: number | TestOptions,
+): { timeout: number | undefined; retry: number } => {
+  if (optionsOrTimeout === undefined) return { timeout: undefined, retry: 0 };
+  if (typeof optionsOrTimeout === "number") return { timeout: optionsOrTimeout, retry: 0 };
+  return { timeout: optionsOrTimeout.timeout, retry: optionsOrTimeout.retry ?? 0 };
+};
 
 declare const console: { log(msg: string): void };
 declare function queueMicrotask(cb: () => void): void;
@@ -84,9 +92,14 @@ export const describe = (name: string, fn: () => void): void => {
   scheduleAutoRun();
 };
 
-/** Define a test case. Optional timeout in milliseconds. */
-export const it = (name: string, fn: () => void | Promise<void>, timeout?: number): void => {
-  currentSuite.tests.push({ name, fn, skip: false, todo: false, only: false, timeout });
+/** Define a test case. Optional timeout or options { timeout?, retry? }. */
+export const it = (
+  name: string,
+  fn: () => void | Promise<void>,
+  options?: number | TestOptions,
+): void => {
+  const { timeout, retry } = parseTestOptions(options);
+  currentSuite.tests.push({ name, fn, skip: false, todo: false, only: false, timeout, retry });
   scheduleAutoRun();
 };
 
@@ -104,14 +117,16 @@ it.skip = (name: string, _fn: () => void | Promise<void>): void => {
     todo: false,
     only: false,
     timeout: undefined,
+    retry: 0,
   });
   scheduleAutoRun();
 };
 
 /** Focus on a single test. When any .only exists, all other tests are skipped. */
-it.only = (name: string, fn: () => void | Promise<void>, timeout?: number): void => {
+it.only = (name: string, fn: () => void | Promise<void>, options?: number | TestOptions): void => {
   hasOnly = true;
-  currentSuite.tests.push({ name, fn, skip: false, todo: false, only: true, timeout });
+  const { timeout, retry } = parseTestOptions(options);
+  currentSuite.tests.push({ name, fn, skip: false, todo: false, only: true, timeout, retry });
   scheduleAutoRun();
 };
 
@@ -126,6 +141,7 @@ it.todo = (name: string): void => {
     todo: true,
     only: false,
     timeout: undefined,
+    retry: 0,
   });
   scheduleAutoRun();
 };
@@ -363,28 +379,34 @@ const runTest = async (
     return { suite: suitePath, name: t.name, status: "skip", duration: 0 };
   }
 
-  const start = now();
-  try {
-    resetAssertionState();
-    for (const hook of beforeEachHooks) {
-      await hook();
-    }
+  const maxAttempts = t.retry + 1;
+  let lastError: unknown;
 
-    // Race test function against optional timeout
-    if (t.timeout !== undefined) {
-      await raceTimeout(t.fn, t.timeout, t.name);
-    } else {
-      await t.fn();
-    }
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const start = now();
+    try {
+      resetAssertionState();
+      for (const hook of beforeEachHooks) {
+        await hook();
+      }
 
-    for (const hook of afterEachHooks) {
-      await hook();
+      if (t.timeout !== undefined) {
+        await raceTimeout(t.fn, t.timeout, t.name);
+      } else {
+        await t.fn();
+      }
+
+      for (const hook of afterEachHooks) {
+        await hook();
+      }
+      checkAssertionState();
+      return { suite: suitePath, name: t.name, status: "pass", duration: now() - start };
+    } catch (error) {
+      lastError = error;
     }
-    checkAssertionState();
-    return { suite: suitePath, name: t.name, status: "pass", duration: now() - start };
-  } catch (error) {
-    return { suite: suitePath, name: t.name, status: "fail", error, duration: now() - start };
   }
+
+  return { suite: suitePath, name: t.name, status: "fail", error: lastError, duration: 0 };
 };
 
 const runSuite = async (

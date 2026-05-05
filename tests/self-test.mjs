@@ -1452,6 +1452,33 @@ describe("test timeout", () => {
   }, 5000);
 });
 
+// ── test retry ───────────────────────────────────────────────────────────────
+
+describe("test retry", () => {
+  it(
+    "retries a flaky test until it passes",
+    () => {
+      // Use a closure counter to simulate a flaky test
+      // This will fail on first call, pass on second
+      if (!globalThis.__retryCount) globalThis.__retryCount = 0;
+      globalThis.__retryCount++;
+      if (globalThis.__retryCount < 2) throw new Error("flaky");
+      expect(globalThis.__retryCount).toBeGreaterThanOrEqual(2);
+      delete globalThis.__retryCount;
+    },
+    { retry: 3 },
+  );
+
+  it(
+    "accepts retry with timeout together",
+    async () => {
+      await new Promise(r => setTimeout(r, 5));
+      expect(true).toBeTruthy();
+    },
+    { timeout: 5000, retry: 1 },
+  );
+});
+
 // ── useFakeTimers ────────────────────────────────────────────────────────────
 
 describe("useFakeTimers", () => {

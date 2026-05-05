@@ -60,4 +60,4 @@ export {
   useFakeTimers,
   useRealTimers,
 } from "./timers.js";
-export type { RunSummary, Suite, Test, TestResult } from "./types.js";
+export type { RunSummary, Suite, Test, TestOptions, TestResult } from "./types.js";

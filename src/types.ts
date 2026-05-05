@@ -4,6 +4,12 @@
  * Core type definitions for the test runner.
  */
 
+/** Options for it() / test(). */
+export interface TestOptions {
+  readonly timeout?: number;
+  readonly retry?: number;
+}
+
 /** A single test case. */
 export interface Test {
   readonly name: string;
@@ -12,6 +18,7 @@ export interface Test {
   readonly todo: boolean;
   readonly only: boolean;
   readonly timeout: number | undefined;
+  readonly retry: number;
 }
 
 /** A test suite (describe block). Can nest. */
