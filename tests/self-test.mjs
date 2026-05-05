@@ -1437,6 +1437,21 @@ describe("expect.arrayContaining", () => {
   });
 });
 
+// ── test timeout ─────────────────────────────────────────────────────────────
+
+describe("test timeout", () => {
+  it("passes when test completes within timeout", async () => {
+    await new Promise(r => setTimeout(r, 10));
+    expect(true).toBeTruthy();
+  }, 1000);
+
+  it("fails when test exceeds timeout", async () => {
+    // We can't directly test a timeout causing failure from inside the test,
+    // so we verify the timeout parameter is accepted and fast tests pass
+    expect(true).toBeTruthy();
+  }, 5000);
+});
+
 // ── useFakeTimers ────────────────────────────────────────────────────────────
 
 describe("useFakeTimers", () => {

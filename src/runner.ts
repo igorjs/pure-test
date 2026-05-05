@@ -8,7 +8,7 @@
 
 import { checkAssertionState, resetAssertionState } from "./expect.js";
 import { getReporter, type Reporter } from "./reporters.js";
-import { getRealTime } from "./timers.js";
+import { getRealClearTimeout, getRealSetTimeout, getRealTime } from "./timers.js";
 import type { RunSummary, Suite, Test, TestResult } from "./types.js";
 
 declare const console: { log(msg: string): void };
@@ -84,9 +84,9 @@ export const describe = (name: string, fn: () => void): void => {
   scheduleAutoRun();
 };
 
-/** Define a test case. */
-export const it = (name: string, fn: () => void | Promise<void>): void => {
-  currentSuite.tests.push({ name, fn, skip: false, todo: false, only: false });
+/** Define a test case. Optional timeout in milliseconds. */
+export const it = (name: string, fn: () => void | Promise<void>, timeout?: number): void => {
+  currentSuite.tests.push({ name, fn, skip: false, todo: false, only: false, timeout });
   scheduleAutoRun();
 };
 
@@ -103,14 +103,15 @@ it.skip = (name: string, _fn: () => void | Promise<void>): void => {
     skip: true,
     todo: false,
     only: false,
+    timeout: undefined,
   });
   scheduleAutoRun();
 };
 
 /** Focus on a single test. When any .only exists, all other tests are skipped. */
-it.only = (name: string, fn: () => void | Promise<void>): void => {
+it.only = (name: string, fn: () => void | Promise<void>, timeout?: number): void => {
   hasOnly = true;
-  currentSuite.tests.push({ name, fn, skip: false, todo: false, only: true });
+  currentSuite.tests.push({ name, fn, skip: false, todo: false, only: true, timeout });
   scheduleAutoRun();
 };
 
@@ -124,6 +125,7 @@ it.todo = (name: string): void => {
     skip: false,
     todo: true,
     only: false,
+    timeout: undefined,
   });
   scheduleAutoRun();
 };
@@ -305,6 +307,42 @@ const formatEachName = (template: string, testCase: unknown, index: number): str
 
 const now = (): number => getRealTime();
 
+// ── Timeout helper ──────────────────────────────────────────────────────────
+
+const raceTimeout = (fn: () => void | Promise<void>, ms: number, name: string): Promise<void> => {
+  const realST = getRealSetTimeout();
+  const realCT = getRealClearTimeout();
+  if (!realST) return fn() as Promise<void>;
+
+  return new Promise<void>((resolve, reject) => {
+    let settled = false;
+    const timer = realST(() => {
+      if (!settled) {
+        settled = true;
+        reject(new Error(`Test "${name}" timed out after ${ms}ms`));
+      }
+    }, ms);
+
+    const done = Promise.resolve(fn());
+    done.then(
+      () => {
+        if (!settled) {
+          settled = true;
+          if (realCT) realCT(timer);
+          resolve();
+        }
+      },
+      (err: unknown) => {
+        if (!settled) {
+          settled = true;
+          if (realCT) realCT(timer);
+          reject(err);
+        }
+      },
+    );
+  });
+};
+
 // ── Execution ───────────────────────────────────────────────────────────────
 
 const runTest = async (
@@ -331,7 +369,14 @@ const runTest = async (
     for (const hook of beforeEachHooks) {
       await hook();
     }
-    await t.fn();
+
+    // Race test function against optional timeout
+    if (t.timeout !== undefined) {
+      await raceTimeout(t.fn, t.timeout, t.name);
+    } else {
+      await t.fn();
+    }
+
     for (const hook of afterEachHooks) {
       await hook();
     }

@@ -11,6 +11,7 @@ export interface Test {
   readonly skip: boolean;
   readonly todo: boolean;
   readonly only: boolean;
+  readonly timeout: number | undefined;
 }
 
 /** A test suite (describe block). Can nest. */

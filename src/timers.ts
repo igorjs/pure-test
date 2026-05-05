@@ -63,6 +63,13 @@ export const getRealTime = (): number => {
   return realDateNow.call(RealDate);
 };
 
+/** Get real setTimeout, unaffected by fake timers. Used by runner for test timeouts. */
+export const getRealSetTimeout = (): ((cb: () => void, ms?: number) => number) | undefined =>
+  realSetTimeout;
+
+/** Get real clearTimeout, unaffected by fake timers. */
+export const getRealClearTimeout = (): ((id: number) => void) | undefined => realClearTimeout;
+
 // ── Module state ────────────────────────────────────────────────────────────
 
 let installed = false;
