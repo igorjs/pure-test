@@ -224,6 +224,9 @@ expect(value).toHaveLength(n)
 expect(fn).toThrow()
 expect(fn).toThrow('message')
 expect(fn).toThrow(/pattern/)
+expect(spy).toHaveBeenCalled()           // called at least once
+expect(spy).toHaveBeenCalledTimes(n)     // called exactly n times
+expect(spy).toHaveBeenCalledWith(a, b)   // any call matches args (deep equality)
 ```
 
 All assertions support `.not`:
@@ -628,6 +631,9 @@ These features work the same way across all three frameworks. If you're using th
 | `expect().toMatch()` | Yes | Yes | Yes |
 | `expect().toHaveLength()` | Yes | Yes | Yes |
 | `expect().toThrow()` | Yes | Yes | Yes |
+| `expect().toHaveBeenCalled()` | Yes | Yes | Yes |
+| `expect().toHaveBeenCalledTimes()` | Yes | Yes | Yes |
+| `expect().toHaveBeenCalledWith()` | Yes | Yes | Yes |
 | `expect().not.*` | Yes | Yes | Yes |
 | `spyFn()` / `fn()` / `vi.fn()` | Yes | Yes | Yes |
 | `spyOn()` | Yes | Yes | Yes |
@@ -649,9 +655,6 @@ Features we plan to add. They're runtime-agnostic and practical.
 
 | Feature | Jest | Vitest | Why we want it |
 |---------|------|--------|---------------|
-| `expect().toHaveBeenCalled()` | Yes | Yes | Cleaner spy assertions than checking `mock.calls.length` |
-| `expect().toHaveBeenCalledWith()` | Yes | Yes | Assert specific call arguments |
-| `expect().toHaveBeenCalledTimes()` | Yes | Yes | Assert exact call count |
 | `expect().toMatchObject()` | Yes | Yes | Partial object matching for flexible assertions |
 | `expect().toHaveProperty()` | Yes | Yes | Assert nested property existence and value |
 | `expect().toStrictEqual()` | Yes | Yes | Equality that checks `undefined` properties and object types |

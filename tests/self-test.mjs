@@ -655,6 +655,73 @@ describe("it.each", () => {
   });
 });
 
+// ── spy assertions ───────────────────────────────────────────────────────────
+
+describe("toHaveBeenCalled", () => {
+  it("passes when spy was called", () => {
+    const spy = spyFn();
+    spy();
+    expect(spy).toHaveBeenCalled();
+  });
+
+  it("fails when spy was not called", () => {
+    const spy = spyFn();
+    expect(() => expect(spy).toHaveBeenCalled()).toThrow();
+  });
+
+  it("not.toHaveBeenCalled passes when spy was not called", () => {
+    const spy = spyFn();
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("throws for non-spy values", () => {
+    expect(() => expect(42).toHaveBeenCalled()).toThrow("requires a spy");
+  });
+});
+
+describe("toHaveBeenCalledTimes", () => {
+  it("passes for exact count", () => {
+    const spy = spyFn();
+    spy();
+    spy();
+    spy();
+    expect(spy).toHaveBeenCalledTimes(3);
+  });
+
+  it("fails for wrong count", () => {
+    const spy = spyFn();
+    spy();
+    expect(() => expect(spy).toHaveBeenCalledTimes(2)).toThrow();
+  });
+});
+
+describe("toHaveBeenCalledWith", () => {
+  it("passes when args match any call", () => {
+    const spy = spyFn();
+    spy(1, 2);
+    spy("a", "b");
+    expect(spy).toHaveBeenCalledWith("a", "b");
+  });
+
+  it("fails when no call matches", () => {
+    const spy = spyFn();
+    spy(1, 2);
+    expect(() => expect(spy).toHaveBeenCalledWith(3, 4)).toThrow();
+  });
+
+  it("uses deep equality for objects", () => {
+    const spy = spyFn();
+    spy({ x: 1 }, [2, 3]);
+    expect(spy).toHaveBeenCalledWith({ x: 1 }, [2, 3]);
+  });
+
+  it("not.toHaveBeenCalledWith passes for unmatched args", () => {
+    const spy = spyFn();
+    spy(1);
+    expect(spy).not.toHaveBeenCalledWith(2);
+  });
+});
+
 // ── useFakeTimers ────────────────────────────────────────────────────────────
 
 describe("useFakeTimers", () => {

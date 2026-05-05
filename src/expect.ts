@@ -70,6 +70,19 @@ const format = (v: unknown): string => {
   return String(v);
 };
 
+const getMockCalls = (value: unknown): readonly unknown[][] => {
+  const fn = value as Record<string, unknown> | null;
+  if (fn && typeof fn === "function" && typeof fn["mock"] === "object" && fn["mock"] !== null) {
+    const mock = fn["mock"] as Record<string, unknown>;
+    if (Array.isArray(mock["calls"])) return mock["calls"] as unknown[][];
+  }
+  throw new AssertionError(
+    "toHaveBeenCalled/toHaveBeenCalledWith requires a spy (created with spyFn or spyOn)",
+    value,
+    "spy",
+  );
+};
+
 /** Fluent assertion builder. */
 export interface Expectation<T> {
   /** Assert strict equality (===). */
@@ -104,6 +117,12 @@ export interface Expectation<T> {
   toHaveLength(expected: number): void;
   /** Assert a function throws (or async function rejects). */
   toThrow(messageOrPattern?: string | RegExp): void;
+  /** Assert a spy was called at least once. */
+  toHaveBeenCalled(): void;
+  /** Assert a spy was called exactly N times. */
+  toHaveBeenCalledTimes(expected: number): void;
+  /** Assert a spy was called with specific arguments (any call). */
+  toHaveBeenCalledWith(...args: readonly unknown[]): void;
   /** Invert the assertion. */
   readonly not: Expectation<T>;
 }
@@ -225,6 +244,30 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
           );
         }
       }
+    },
+
+    toHaveBeenCalled() {
+      const calls = getMockCalls(actual);
+      assert(
+        calls.length > 0,
+        `spy to have been called (called ${calls.length} times)`,
+        ">0 calls",
+      );
+    },
+
+    toHaveBeenCalledTimes(expected: number) {
+      const calls = getMockCalls(actual);
+      assert(
+        calls.length === expected,
+        `spy to have been called ${expected} times (called ${calls.length} times)`,
+        expected,
+      );
+    },
+
+    toHaveBeenCalledWith(...args: readonly unknown[]) {
+      const calls = getMockCalls(actual);
+      const match = calls.some(call => deepEqual(call, args));
+      assert(match, `spy to have been called with ${format(args)}`, args);
     },
 
     get not(): Expectation<T> {
