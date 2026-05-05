@@ -106,18 +106,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - run: corepack enable
 
       - uses: actions/setup-node@v6
         with:
           node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
 
       - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
-
-      - name: Install miniflare
-        run: npm install miniflare
 
       - name: Workers smoke test
         run: node tests/worker-test.mjs
@@ -128,18 +129,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - run: corepack enable
 
       - uses: actions/setup-node@v6
         with:
           node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
 
       - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
-
-      - name: Install Playwright
-        run: npm install playwright && npx playwright install --with-deps chromium
 
       - name: Browser smoke test
         run: node tests/browser-test.mjs

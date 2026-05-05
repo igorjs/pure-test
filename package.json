@@ -62,7 +62,9 @@
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.14",
-    "@typescript/native-preview": "7.0.0-dev.20260503.1"
+    "@typescript/native-preview": "7.0.0-dev.20260503.1",
+    "miniflare": "4.20260504.0",
+    "playwright": "1.59.1"
   },
   "peerDependencies": {
     "typescript": ">=5.7.0"
