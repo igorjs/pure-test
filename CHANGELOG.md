@@ -4,6 +4,31 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-05-05
+
+### Added
+- Add describe.each for parameterised suites
+- Add --bail / -b flag to stop on first failure
+- Export AsymmetricMatcher type and add JSDoc to all matchers
+- Add coloured terminal output to reporters
+- Add diff output for failed deep equality assertions
+- Add --grep / -t test name filtering
+- Add test retry support
+- Add test timeout support
+- Add getter/setter spying via spyOn accessor parameter
+- Add expect.assertions(n) and expect.hasAssertions()
+- Add email and UUID validation matchers
+- Add toMatchArray and toMatchUnsortedArray matchers
+- Complete Jest/Vitest matcher parity
+- Add toMatchObject, toHaveProperty, toStrictEqual, and asymmetric matchers
+- Add toHaveBeenCalled spy assertion matchers
+
+### Fixed
+- Validate UUID variant nibble per RFC 9562
+
+### Changed
+- Benchmark and update performance claims in README
+
 ## [0.2.0] - 2026-05-06
 
 ### Added
@@ -78,5 +103,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Sync lockfile specifier with pinned biome version
 - Close unclosed else block in release script
 
+[0.3.0]: https://github.com/igorjs/pure-test/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/igorjs/pure-test/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/igorjs/pure-test/releases/tag/v0.1.0
