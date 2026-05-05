@@ -139,7 +139,7 @@ jobs:
           path: dist/
 
       - name: Install Playwright
-        run: npx playwright install --with-deps chromium
+        run: npm install playwright && npx playwright install --with-deps chromium
 
       - name: Browser smoke test
         run: node tests/browser-test.mjs
