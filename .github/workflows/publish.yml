@@ -49,6 +49,15 @@ jobs:
       - name: Type tests
         run: pnpm run test:types
 
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: publish-dist
+          path: |
+            dist/
+            package.json
+          retention-days: 1
+
   publish-npm:
     needs: verify
     runs-on: ubuntu-latest
@@ -68,8 +77,9 @@ jobs:
       - name: Set version from tag
         run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
 
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run build
+      - uses: actions/download-artifact@v4
+        with:
+          name: publish-dist
 
       - name: Publish to npm
         run: |
@@ -98,8 +108,9 @@ jobs:
       - name: Set version from tag
         run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
 
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run build
+      - uses: actions/download-artifact@v4
+        with:
+          name: publish-dist
 
       - name: Publish to GitHub Packages
         run: |
@@ -120,6 +131,10 @@ jobs:
 
       - name: Set version from tag
         run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: publish-dist
 
       - name: Publish to JSR
         run: |
