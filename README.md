@@ -697,7 +697,10 @@ These features work the same way across all three frameworks. If you're using th
 | `expect.any()` / asymmetric matchers | Yes | Yes | Yes |
 | `expect.not.*` asymmetric matchers | Yes | Yes | Yes |
 | `expect.closeTo()` | Yes | Yes | Yes |
+| `expect.assertions()` / `expect.hasAssertions()` | Yes | Yes | Yes |
 | `.not` / `.resolves` / `.rejects` modifiers | Yes | Yes | Yes |
+| `spyOn(obj, 'prop', 'get'\|'set')` | Yes | Yes | Yes |
+| Test timeout `it('name', fn, 5000)` | Yes | Yes | Yes |
 | `spyFn()` / `fn()` / `vi.fn()` | Yes | Yes | Yes |
 | `spyOn()` | Yes | Yes | Yes |
 | `mockReturnValue` / `mockReturnValueOnce` | Yes | Yes | Yes |
@@ -718,8 +721,6 @@ Features we plan to add. They're runtime-agnostic and practical.
 
 | Feature | Jest | Vitest | Why we want it |
 |---------|------|--------|---------------|
-| Getter/setter spying | Yes | Yes | `spyOn(obj, 'prop', 'get')` for property access |
-| Test timeout | Yes | Yes | `it('name', fn, 5000)` to fail slow tests |
 | `--grep` (test name filtering) | Yes | Yes | Run only tests matching a pattern |
 | Test retry | No | Yes | Re-run flaky tests N times before failing |
 
