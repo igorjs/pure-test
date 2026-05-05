@@ -4,14 +4,67 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [0.2.0] - 2026-05-05
+## [0.2.0] - 2026-05-06
 
 ### Added
-- Add cross-runtime fake timer support
-- Add it.only, it.todo, it.each, and vi/jest namespaces
+
+#### Test Registration
+- `it.only` / `describe.only` for focused test execution
+- `it.todo` for documenting planned tests
+- `it.each` / `describe.each` for parameterised data-driven tests
+- Test timeout: `it('name', fn, 5000)` or `it('name', fn, { timeout: 5000 })`
+- Test retry: `it('name', fn, { retry: 3 })`
+- `--grep` / `-g` / `--testNamePattern` / `-t` for test name filtering (regex)
+- `--bail` / `-b` to stop on first failure
+- `setGrep()` and `setBail()` programmatic APIs
+
+#### Fake Timers
+- `useFakeTimers()` / `useRealTimers()` with full config (`now`, `toFake`, `loopLimit`)
+- `advanceTimersByTime()`, `runAllTimers()`, `runOnlyPendingTimers()`
+- `setSystemTime()`, `getRealSystemTime()`, `getTimerCount()`
+- Fake `Date` (subclass preserving `instanceof`), `performance.now()`
+- `restoreAllMocks()` also restores real timers
+- Cross-runtime: works on Node, Deno, Bun, Workers
+
+#### Assertions (complete Jest/Vitest parity)
+- `toBeNaN()`, `toBeCloseTo()`, `toBeTypeOf()`, `toSatisfy()`
+- `toContainEqual()`, `toMatchArray()`, `toMatchUnsortedArray()`
+- `toMatchObject()`, `toHaveProperty()`, `toStrictEqual()`
+- `toHaveBeenCalled()`, `toHaveBeenCalledTimes()`, `toHaveBeenCalledWith()`
+- `toHaveBeenLastCalledWith()`, `toHaveBeenNthCalledWith()`
+- `toHaveReturned()`, `toHaveReturnedTimes()`, `toHaveReturnedWith()`
+- `toHaveLastReturnedWith()`, `toHaveNthReturnedWith()`
+- `toBeEmail()`, `toBeUUID(version?)` with RFC 9562 validation
+- `.resolves` / `.rejects` promise modifiers
+- `expect.assertions(n)`, `expect.hasAssertions()`
+
+#### Asymmetric Matchers
+- `expect.any()`, `expect.anything()`
+- `expect.stringContaining()`, `expect.stringMatching()`
+- `expect.objectContaining()`, `expect.arrayContaining()`
+- `expect.closeTo()`, `expect.email()`, `expect.uuid()`
+- `expect.not.arrayContaining()`, `expect.not.objectContaining()`
+- `expect.not.stringContaining()`, `expect.not.stringMatching()`
+
+#### Mocking
+- `vi` and `jest` namespace drop-ins for migration
+- Getter/setter spying: `spyOn(obj, 'prop', 'get'|'set')`
+- Timer functions on `vi.*` / `jest.*` namespaces
+
+#### DX
+- Coloured terminal output (respects `NO_COLOR`)
+- Diff output for failed deep equality assertions
+- JSDoc on all 40+ `Expectation` methods for IDE tooltips
+- Export `AsymmetricMatcher` type for consumers
 
 ### Fixed
 - Validate reporter flag in CLI
+- UUID validation per RFC 9562 (variant nibble check)
+
+### Changed
+- Project status from alpha to beta
+- Updated performance claims with real benchmarks (236 tests in ~80-100ms)
+- Moved fake timers from "never support" to supported (cross-runtime concern debunked)
 
 ## [0.1.0] - 2026-05-04
 
