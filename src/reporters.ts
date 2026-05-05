@@ -12,6 +12,19 @@ export interface Reporter {
   readonly format: (summary: RunSummary) => string;
 }
 
+// ── ANSI colours ────────────────────────────────────────────────────────────
+
+const g = globalThis as Record<string, unknown>;
+const proc = g["process"] as { env?: Record<string, string | undefined> } | undefined;
+const noColor = proc?.env?.["NO_COLOR"] !== undefined;
+
+const green = (s: string): string => (noColor ? s : `\x1b[32m${s}\x1b[0m`);
+const red = (s: string): string => (noColor ? s : `\x1b[31m${s}\x1b[0m`);
+const yellow = (s: string): string => (noColor ? s : `\x1b[33m${s}\x1b[0m`);
+const cyan = (s: string): string => (noColor ? s : `\x1b[36m${s}\x1b[0m`);
+const dim = (s: string): string => (noColor ? s : `\x1b[2m${s}\x1b[0m`);
+const bold = (s: string): string => (noColor ? s : `\x1b[1m${s}\x1b[0m`);
+
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 const errMessage = (r: TestResult): string => {
@@ -25,9 +38,13 @@ const fullName = (r: TestResult): string => {
 };
 
 const summaryLine = (s: RunSummary): string => {
-  const parts = [`${s.passed} passed`, `${s.failed} failed`, `${s.skipped} skipped`];
-  if (s.todo > 0) parts.push(`${s.todo} todo`);
-  return `${parts.join(", ")} (${s.duration.toFixed(0)}ms)`;
+  const parts = [
+    green(`${s.passed} passed`),
+    s.failed > 0 ? red(`${s.failed} failed`) : `${s.failed} failed`,
+    s.skipped > 0 ? yellow(`${s.skipped} skipped`) : `${s.skipped} skipped`,
+  ];
+  if (s.todo > 0) parts.push(cyan(`${s.todo} todo`));
+  return `${parts.join(", ")} ${dim(`(${s.duration.toFixed(0)}ms)`)}`;
 };
 
 // ── TAP ─────────────────────────────────────────────────────────────────────
@@ -81,23 +98,23 @@ export const spec: Reporter = {
       for (let i = 0; i < suitePath.length; i++) {
         if (currentSuite[i] !== suitePath[i]) {
           const indent = "  ".repeat(i);
-          lines.push(`${indent}${suitePath[i]}`);
+          lines.push(`${indent}${bold(suitePath[i]!)}`);
         }
       }
       currentSuite = [...suitePath];
 
       const indent = "  ".repeat(suitePath.length);
       if (r.status === "pass") {
-        lines.push(`${indent}  pass  ${r.name} (${r.duration.toFixed(1)}ms)`);
+        lines.push(`${indent}  ${green("pass")}  ${r.name} ${dim(`(${r.duration.toFixed(1)}ms)`)}`);
       } else if (r.status === "todo") {
-        lines.push(`${indent}  todo  ${r.name}`);
+        lines.push(`${indent}  ${cyan("todo")}  ${r.name}`);
       } else if (r.status === "skip") {
-        lines.push(`${indent}  skip  ${r.name}`);
+        lines.push(`${indent}  ${yellow("skip")}  ${r.name}`);
       } else {
-        lines.push(`${indent}  FAIL  ${r.name}`);
+        lines.push(`${indent}  ${red("FAIL")}  ${r.name}`);
         const msg = errMessage(r);
         for (const line of msg.split("\n")) {
-          lines.push(`${indent}        ${line}`);
+          lines.push(`${indent}        ${red(line)}`);
         }
       }
     }
@@ -141,10 +158,10 @@ export const minimal: Reporter = {
   format: summary => {
     const dots = summary.results
       .map(r => {
-        if (r.status === "pass") return ".";
-        if (r.status === "skip") return "s";
-        if (r.status === "todo") return "T";
-        return "F";
+        if (r.status === "pass") return green(".");
+        if (r.status === "skip") return yellow("s");
+        if (r.status === "todo") return cyan("T");
+        return red("F");
       })
       .join("");
     const lines = [dots, ""];
