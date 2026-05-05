@@ -867,6 +867,23 @@ describe("toMatchUnsortedArray", () => {
       expect.any(String),
     ]);
   });
+
+  it("matches objects with objectContaining", () => {
+    expect([
+      { id: 1, name: "Alice", age: 30 },
+      { id: 2, name: "Bob", age: 25 },
+    ]).toMatchUnsortedArray([
+      expect.objectContaining({ name: "Bob" }),
+      expect.objectContaining({ name: "Alice" }),
+    ]);
+  });
+
+  it("mixes exact objects and objectContaining", () => {
+    expect([
+      { id: 1, name: "Alice" },
+      { id: 2, name: "Bob" },
+    ]).toMatchUnsortedArray([{ id: 2, name: "Bob" }, expect.objectContaining({ id: 1 })]);
+  });
 });
 
 // ── toMatch with string ──────────────────────────────────────────────────────
