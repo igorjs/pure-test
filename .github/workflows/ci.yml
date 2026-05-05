@@ -27,11 +27,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Lint & format
-        if: matrix.node-version == 24
         run: pnpm run lint
 
       - name: Type-check
-        if: matrix.node-version == 24
         run: pnpm run check
 
       - name: Build
