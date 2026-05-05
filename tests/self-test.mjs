@@ -489,6 +489,67 @@ describe("spyOn()", () => {
   });
 });
 
+// ── spyOn accessors ──────────────────────────────────────────────────────────
+
+describe("spyOn getter/setter", () => {
+  afterEach(() => restoreAllMocks());
+
+  it("spies on a getter", () => {
+    const obj = { _name: "Alice" };
+    Object.defineProperty(obj, "name", {
+      get() {
+        return this._name;
+      },
+      configurable: true,
+    });
+    const spy = spyOn(obj, "name", "get");
+    const val = obj.name;
+    expect(val).toBe("Alice");
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it("overrides getter with mockReturnValue", () => {
+    const obj = { _v: 1 };
+    Object.defineProperty(obj, "value", {
+      get() {
+        return this._v;
+      },
+      configurable: true,
+    });
+    spyOn(obj, "value", "get").mockReturnValue(99);
+    expect(obj.value).toBe(99);
+  });
+
+  it("spies on a setter", () => {
+    let stored = 0;
+    const obj = {};
+    Object.defineProperty(obj, "count", {
+      set(v) {
+        stored = v;
+      },
+      configurable: true,
+    });
+    const spy = spyOn(obj, "count", "set");
+    obj.count = 42;
+    expect(spy).toHaveBeenCalledWith(42);
+    expect(stored).toBe(42);
+  });
+
+  it("restores getter on restoreAllMocks", () => {
+    const obj = {};
+    Object.defineProperty(obj, "val", {
+      get() {
+        return "real";
+      },
+      configurable: true,
+    });
+    spyOn(obj, "val", "get").mockReturnValue("fake");
+    expect(obj.val).toBe("fake");
+    restoreAllMocks();
+    expect(obj.val).toBe("real");
+  });
+});
+
 // ── clearAllMocks / resetAllMocks ────────────────────────────────────────────
 
 describe("clearAllMocks / resetAllMocks", () => {

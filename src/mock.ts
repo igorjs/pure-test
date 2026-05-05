@@ -215,10 +215,17 @@ export const spyFn = <
 
   mockFn.mockRestore = () => {
     mockFn.mockReset();
-    // For spyOn, the actual restore is handled by restoreAllMocks()
     const record = spyRegistry.find(r => r.mock === mockFn);
     if (record) {
-      record.target[record.method] = record.original;
+      if (
+        record.original !== null &&
+        typeof record.original === "object" &&
+        "configurable" in record.original
+      ) {
+        Object.defineProperty(record.target, record.method, record.original as PropertyDescriptor);
+      } else {
+        record.target[record.method] = record.original;
+      }
       spyRegistry.splice(spyRegistry.indexOf(record), 1);
     }
   };
@@ -281,13 +288,22 @@ export const spyFn = <
 // ── spyOn() ─────────────────────────────────────────────────────────────────
 
 /**
- * Spy on a method. Calls through to original by default.
+ * Spy on a method, getter, or setter. Calls through to original by default.
  * Use `.mockImplementation()` or `.mockReturnValue()` to override.
+ *
+ * @param target - The object to spy on
+ * @param method - The property name
+ * @param accessor - Optional: 'get' or 'set' to spy on a getter/setter
  */
 export const spyOn = <T extends Record<string, unknown>>(
   target: T,
   method: string & keyof T,
+  accessor?: "get" | "set",
 ): MockFn => {
+  if (accessor) {
+    return spyOnAccessor(target as Record<string, unknown>, method, accessor);
+  }
+
   const original = target[method];
   if (typeof original !== "function") {
     throw new Error(`Cannot spy on ${method}: not a function`);
@@ -300,6 +316,61 @@ export const spyOn = <T extends Record<string, unknown>>(
 
   spyRegistry.push({ target: target as Record<string, unknown>, method, original, mock: spy });
   (target as Record<string, unknown>)[method] = spy;
+
+  return spy;
+};
+
+const spyOnAccessor = (
+  target: Record<string, unknown>,
+  prop: string,
+  accessor: "get" | "set",
+): MockFn => {
+  const existing = Object.getOwnPropertyDescriptor(target, prop);
+  const descriptor: PropertyDescriptor = existing ?? { configurable: true, enumerable: true };
+
+  if (!descriptor.configurable) {
+    throw new Error(`Cannot spy on ${prop}: property is not configurable`);
+  }
+
+  const originalGetter = descriptor.get;
+  const originalSetter = descriptor.set;
+
+  if (accessor === "get") {
+    const spy = spyFn(originalGetter ? () => originalGetter.call(target) : () => undefined);
+    spy.mockName(`spy.get.${prop}`);
+
+    Object.defineProperty(target, prop, {
+      ...descriptor,
+      get: spy as unknown as () => unknown,
+    });
+
+    spyRegistry.push({
+      target,
+      method: prop,
+      original: descriptor,
+      mock: spy,
+    });
+
+    return spy;
+  }
+
+  // accessor === "set"
+  const spy = spyFn(
+    originalSetter ? (v: unknown) => originalSetter.call(target, v) : () => undefined,
+  );
+  spy.mockName(`spy.set.${prop}`);
+
+  Object.defineProperty(target, prop, {
+    ...descriptor,
+    set: spy as unknown as (v: unknown) => void,
+  });
+
+  spyRegistry.push({
+    target,
+    method: prop,
+    original: descriptor,
+    mock: spy,
+  });
 
   return spy;
 };
@@ -340,7 +411,16 @@ export const restoreAllMocks = (): void => {
   restoreTimers();
   while (spyRegistry.length > 0) {
     const record = spyRegistry.pop()!;
-    record.target[record.method] = record.original;
+    // Accessor spies store a PropertyDescriptor as original
+    if (
+      record.original !== null &&
+      typeof record.original === "object" &&
+      "configurable" in record.original
+    ) {
+      Object.defineProperty(record.target, record.method, record.original as PropertyDescriptor);
+    } else {
+      record.target[record.method] = record.original;
+    }
   }
 };
 
