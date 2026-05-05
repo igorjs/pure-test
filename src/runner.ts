@@ -6,6 +6,7 @@
  * No runtime-specific imports. Uses only globalThis APIs.
  */
 
+import { checkAssertionState, resetAssertionState } from "./expect.js";
 import { getReporter, type Reporter } from "./reporters.js";
 import { getRealTime } from "./timers.js";
 import type { RunSummary, Suite, Test, TestResult } from "./types.js";
@@ -326,6 +327,7 @@ const runTest = async (
 
   const start = now();
   try {
+    resetAssertionState();
     for (const hook of beforeEachHooks) {
       await hook();
     }
@@ -333,6 +335,7 @@ const runTest = async (
     for (const hook of afterEachHooks) {
       await hook();
     }
+    checkAssertionState();
     return { suite: suitePath, name: t.name, status: "pass", duration: now() - start };
   } catch (error) {
     return { suite: suitePath, name: t.name, status: "fail", error, duration: now() - start };

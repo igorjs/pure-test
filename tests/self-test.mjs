@@ -722,6 +722,30 @@ describe("toHaveBeenCalledWith", () => {
   });
 });
 
+// ── expect.assertions / expect.hasAssertions ─────────────────────────────────
+
+describe("expect.assertions", () => {
+  it("passes when assertion count matches", () => {
+    expect.assertions(2);
+    expect(1).toBe(1);
+    expect(2).toBe(2);
+  });
+
+  it("tracks assertion count correctly", () => {
+    expect.assertions(3);
+    expect(1).toBe(1);
+    expect("a").toContain("a");
+    expect(true).toBeTruthy();
+  });
+});
+
+describe("expect.hasAssertions", () => {
+  it("passes when at least one assertion runs", () => {
+    expect.hasAssertions();
+    expect(true).toBeTruthy();
+  });
+});
+
 // ── toBeEmail ────────────────────────────────────────────────────────────────
 
 describe("toBeEmail", () => {

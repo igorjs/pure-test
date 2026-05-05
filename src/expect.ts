@@ -19,6 +19,33 @@ export class AssertionError extends Error {
   }
 }
 
+// ── Assertion counting ──────────────────────────────────────────────────────
+
+let assertionCount = 0;
+let expectedAssertions: number | undefined;
+let expectAnyAssertions = false;
+
+/** Reset assertion counters. Called by the runner before each test. */
+export const resetAssertionState = (): void => {
+  assertionCount = 0;
+  expectedAssertions = undefined;
+  expectAnyAssertions = false;
+};
+
+/** Check assertion expectations. Called by the runner after each test. Throws on mismatch. */
+export const checkAssertionState = (): void => {
+  if (expectedAssertions !== undefined && assertionCount !== expectedAssertions) {
+    throw new AssertionError(
+      `Expected ${expectedAssertions} assertions but ${assertionCount} were called`,
+      assertionCount,
+      expectedAssertions,
+    );
+  }
+  if (expectAnyAssertions && assertionCount === 0) {
+    throw new AssertionError("Expected at least one assertion but none were called", 0, ">0");
+  }
+};
+
 // ── Asymmetric matchers ──────────────────────────────────────────────────────
 
 const ASYMMETRIC = Symbol.for("pure-test.asymmetric");
@@ -378,6 +405,16 @@ expect.closeTo = (expected: number, numDigits = 2): AsymmetricMatcher => ({
   toString: () => `expect.closeTo(${expected})`,
 });
 
+/** Verify that a specific number of assertions were called during a test. */
+expect.assertions = (count: number): void => {
+  expectedAssertions = count;
+};
+
+/** Verify that at least one assertion was called during a test. */
+expect.hasAssertions = (): void => {
+  expectAnyAssertions = true;
+};
+
 /** Negated asymmetric matchers. */
 expect.not = {
   arrayContaining: (expected: readonly unknown[]): AsymmetricMatcher => ({
@@ -404,6 +441,7 @@ expect.not = {
 
 const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
   const assert = (condition: boolean, msg: string, exp: unknown) => {
+    assertionCount++;
     const pass = negated ? !condition : condition;
     if (!pass) {
       const prefix = negated ? "Expected NOT " : "Expected ";
