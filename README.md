@@ -697,7 +697,7 @@ Mock instance methods (`mockReturnValue`, `mockImplementation`, `mock.calls`, et
 |---|---|---|---|
 | 50 tests (same suite) | **~57ms** | ~762ms | ~559ms |
 | Startup (1 test) | **~50ms** | ~880ms | ~660ms |
-| Runtime dependencies | **0** | ~194 | ~35 |
+| Install footprint | **0 packages** | ~194 packages | ~35 packages |
 | Config needed | **No** | Yes | Yes |
 | Node.js | Yes | Yes | Yes |
 | Deno | **Yes** | No | Experimental |
