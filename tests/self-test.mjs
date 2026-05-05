@@ -722,6 +722,88 @@ describe("toHaveBeenCalledWith", () => {
   });
 });
 
+// ── toBeEmail ────────────────────────────────────────────────────────────────
+
+describe("toBeEmail", () => {
+  it("passes for valid emails", () => {
+    expect("user@example.com").toBeEmail();
+    expect("test.name+tag@sub.domain.org").toBeEmail();
+  });
+
+  it("fails for invalid emails", () => {
+    expect(() => expect("not-an-email").toBeEmail()).toThrow();
+    expect(() => expect("@missing-local.com").toBeEmail()).toThrow();
+    expect(() => expect("missing@tld").toBeEmail()).toThrow();
+  });
+
+  it("not.toBeEmail passes for non-emails", () => {
+    expect("plain string").not.toBeEmail();
+  });
+});
+
+// ── toBeUUID ─────────────────────────────────────────────────────────────────
+
+describe("toBeUUID", () => {
+  it("passes for any valid UUID", () => {
+    expect("550e8400-e29b-41d4-a716-446655440000").toBeUUID();
+  });
+
+  it("passes for specific version", () => {
+    expect("550e8400-e29b-41d4-a716-446655440000").toBeUUID(4);
+  });
+
+  it("fails for wrong version", () => {
+    expect(() => expect("550e8400-e29b-41d4-a716-446655440000").toBeUUID(1)).toThrow();
+  });
+
+  it("fails for invalid UUID format", () => {
+    expect(() => expect("not-a-uuid").toBeUUID()).toThrow();
+    expect(() => expect(12345).toBeUUID()).toThrow();
+  });
+
+  it("not.toBeUUID passes for non-UUIDs", () => {
+    expect("hello").not.toBeUUID();
+  });
+});
+
+// ── expect.email / expect.uuid (asymmetric) ──────────────────────────────────
+
+describe("expect.email", () => {
+  it("works inside toEqual", () => {
+    expect("user@test.com").toEqual(expect.email());
+  });
+
+  it("works inside toMatchObject", () => {
+    expect({ email: "alice@example.com", name: "Alice" }).toMatchObject({
+      email: expect.email(),
+    });
+  });
+
+  it("fails for non-email", () => {
+    expect(() => expect("nope").toEqual(expect.email())).toThrow();
+  });
+});
+
+describe("expect.uuid", () => {
+  it("matches any UUID", () => {
+    expect("550e8400-e29b-41d4-a716-446655440000").toEqual(expect.uuid());
+  });
+
+  it("matches specific version", () => {
+    expect("550e8400-e29b-41d4-a716-446655440000").toEqual(expect.uuid(4));
+  });
+
+  it("works inside toMatchObject", () => {
+    expect({ id: "550e8400-e29b-41d4-a716-446655440000", name: "Item" }).toMatchObject({
+      id: expect.uuid(4),
+    });
+  });
+
+  it("fails for wrong version", () => {
+    expect(() => expect("550e8400-e29b-41d4-a716-446655440000").toEqual(expect.uuid(1))).toThrow();
+  });
+});
+
 // ── toBeNaN ──────────────────────────────────────────────────────────────────
 
 describe("toBeNaN", () => {

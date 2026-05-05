@@ -32,6 +32,23 @@ interface AsymmetricMatcher {
 const isAsymmetric = (v: unknown): v is AsymmetricMatcher =>
   v !== null && typeof v === "object" && ASYMMETRIC in v;
 
+// ── Format validators ───────────────────────────────────────────────────────
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const UUID_BASE_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const isUUID = (v: unknown, version?: number): boolean => {
+  if (typeof v !== "string") return false;
+  if (!UUID_BASE_RE.test(v)) return false;
+  if (version !== undefined) {
+    // Version is the 13th character (index 14 with hyphens: position after 2nd hyphen)
+    const vChar = v[14];
+    return vChar === String(version);
+  }
+  return true;
+};
+
 // ── Deep equality ───────────────────────────────────────────────────────────
 
 const deepEqualArrays = (a: unknown[], b: unknown[]): boolean => {
@@ -214,6 +231,10 @@ export interface Expectation<T> {
   toBeInstanceOf(ctor: new (...args: readonly unknown[]) => unknown): void;
   toBeTypeOf(expected: string): void;
   toSatisfy(predicate: (value: T) => boolean): void;
+  /** Assert the value is a valid email address. */
+  toBeEmail(): void;
+  /** Assert the value is a valid UUID, optionally of a specific version. */
+  toBeUUID(version?: number): void;
 
   // ── Numeric matchers ──
   toBeGreaterThan(expected: number): void;
@@ -313,6 +334,20 @@ expect.arrayContaining = (expected: readonly unknown[]): AsymmetricMatcher => ({
     return expected.every(exp => v.some(item => deepEqual(item, exp)));
   },
   toString: () => `expect.arrayContaining(${format(expected)})`,
+});
+
+/** Match a valid email address. */
+expect.email = (): AsymmetricMatcher => ({
+  [ASYMMETRIC]: true,
+  matches: (v: unknown) => typeof v === "string" && EMAIL_RE.test(v),
+  toString: () => "expect.email()",
+});
+
+/** Match a valid UUID, optionally of a specific version. */
+expect.uuid = (version?: number): AsymmetricMatcher => ({
+  [ASYMMETRIC]: true,
+  matches: (v: unknown) => isUUID(v, version),
+  toString: () => (version !== undefined ? `expect.uuid(${version})` : "expect.uuid()"),
 });
 
 /** Match a number approximately equal to expected. */
@@ -415,6 +450,19 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
 
     toSatisfy(predicate: (value: T) => boolean) {
       assert(predicate(actual), `${format(actual)} to satisfy predicate`, "predicate");
+    },
+
+    toBeEmail() {
+      assert(
+        typeof actual === "string" && EMAIL_RE.test(actual),
+        `${format(actual)} to be a valid email`,
+        "email",
+      );
+    },
+
+    toBeUUID(version?: number) {
+      const label = version !== undefined ? `UUID v${version}` : "UUID";
+      assert(isUUID(actual, version), `${format(actual)} to be a valid ${label}`, label);
     },
 
     // ── Numeric matchers ──
