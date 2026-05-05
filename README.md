@@ -695,9 +695,9 @@ Mock instance methods (`mockReturnValue`, `mockImplementation`, `mock.calls`, et
 
 |  | Pure Test | Jest | Vitest |
 |---|---|---|---|
+| 50 tests (same suite) | **~57ms** | ~762ms | ~559ms |
 | Startup (1 test) | **~50ms** | ~880ms | ~660ms |
-| 238 tests | **~80-100ms** | - | - |
-| Dependencies | **0** | 50+ | 30+ |
+| Dependencies | **0** | ~194 | ~35 |
 | Config needed | **No** | Yes | Yes |
 | Node.js | Yes | Yes | Yes |
 | Deno | **Yes** | No | Experimental |
@@ -706,7 +706,7 @@ Mock instance methods (`mockReturnValue`, `mockImplementation`, `mock.calls`, et
 | Transforms needed | **No** | Yes (babel/SWC) | Yes (esbuild/SWC) |
 | Mock API | `vi` + `jest` + individual | Jest API | vi namespace |
 
-> Benchmarks: Apple M-series, Node 25, measured with `performance.now()` over 10 runs (median). Jest 30.2, Vitest 4.1.
+> Benchmarks: Apple M-series, Node 25, identical 50-test suite across all three runners, measured with `performance.now()` over 7 runs (median). Jest 30.2, Vitest 4.1.
 
 ## Feature Comparison
 
