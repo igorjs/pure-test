@@ -263,6 +263,18 @@ describe.concurrent = (name: string, fn: () => void): void => {
   scheduleAutoRun();
 };
 
+/** Create parameterised suites from an array of cases. */
+describe.each =
+  <T>(cases: ReadonlyArray<T>) =>
+  (name: string, fn: (...args: readonly unknown[]) => void): void => {
+    for (let i = 0; i < cases.length; i++) {
+      const c = cases[i] as unknown;
+      const suiteName = formatEachName(name, c, i);
+      const suiteFn = Array.isArray(c) ? () => fn(...c) : () => fn(c);
+      describe(suiteName, suiteFn);
+    }
+  };
+
 /** Register a before-all hook for the current suite. */
 export const beforeAll = (fn: () => void | Promise<void>): void => {
   currentSuite.beforeAll.push(fn);

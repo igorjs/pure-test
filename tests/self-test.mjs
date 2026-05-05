@@ -783,6 +783,17 @@ describe("toHaveBeenCalledWith", () => {
   });
 });
 
+// ── describe.each ────────────────────────────────────────────────────────────
+
+describe.each([
+  { base: 2, exp: 3, result: 8 },
+  { base: 3, exp: 2, result: 9 },
+])("$base ** $exp", ({ base, exp, result }) => {
+  it(`equals ${result}`, () => {
+    expect(base ** exp).toBe(result);
+  });
+});
+
 // ── expect.assertions / expect.hasAssertions ─────────────────────────────────
 
 describe("expect.assertions", () => {
