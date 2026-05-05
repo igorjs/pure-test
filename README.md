@@ -88,7 +88,8 @@ describe(name, fn)              // define a suite (nestable)
 describe.concurrent(name, fn)   // suite with parallel test execution
 describe.skip(name, fn)         // skip a suite
 describe.only(name, fn)         // focus: only run this suite
-it(name, fn) / test(name, fn)   // define a test (sync or async)
+it(name, fn, options?)          // define a test (sync or async)
+test(name, fn, options?)        // alias for it
 it.skip(name, fn)               // skip a test
 it.only(name, fn)               // focus: only run this test
 it.todo(name)                   // placeholder for a planned test
@@ -105,6 +106,40 @@ afterEach(fn)    // run after each test in the suite
 ```
 
 Hooks inherit: a `beforeEach` in an outer `describe` runs before each test in all nested `describe` blocks.
+
+### Test Options
+
+The third parameter to `it()` / `test()` accepts a timeout (number) or an options object:
+
+```ts
+// Timeout: fail if the test takes longer than 5 seconds
+it('slow operation', async () => { ... }, 5000)
+
+// Retry: re-run a flaky test up to 3 times before failing
+it('flaky API call', async () => { ... }, { retry: 3 })
+
+// Both: timeout + retry
+it('network test', async () => { ... }, { timeout: 10000, retry: 2 })
+```
+
+Works with `it()`, `test()`, and `it.only()`.
+
+### Assertion Counting
+
+Verify that the expected number of assertions ran during a test:
+
+```ts
+it('calls both callbacks', () => {
+  expect.assertions(2)       // exactly 2 assertions must run
+  expect(a).toBe(1)
+  expect(b).toBe(2)
+})
+
+it('has at least one assertion', () => {
+  expect.hasAssertions()     // at least 1 assertion must run
+  expect(result).toBeTruthy()
+})
+```
 
 ### Concurrent Execution
 
@@ -601,6 +636,18 @@ setReporter({
   }
 })
 ```
+
+### Programmatic Filtering
+
+Filter tests by name when running directly (without the CLI):
+
+```ts
+import { setGrep } from '@igorjs/pure-test'
+setGrep('auth')            // string (treated as regex)
+setGrep(/User.*login/i)    // RegExp
+```
+
+Matches against the full hierarchical test name (`describe > test`).
 
 ## Test Isolation
 

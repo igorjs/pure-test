@@ -86,6 +86,18 @@ export const tap: Reporter = {
 
 // ── Spec (human-readable) ───────────────────────────────────────────────────
 
+const formatSpecResult = (r: TestResult, indent: string): string[] => {
+  if (r.status === "pass")
+    return [`${indent}  ${green("pass")}  ${r.name} ${dim(`(${r.duration.toFixed(1)}ms)`)}`];
+  if (r.status === "todo") return [`${indent}  ${cyan("todo")}  ${r.name}`];
+  if (r.status === "skip") return [`${indent}  ${yellow("skip")}  ${r.name}`];
+  const lines = [`${indent}  ${red("FAIL")}  ${r.name}`];
+  for (const line of errMessage(r).split("\n")) {
+    lines.push(`${indent}        ${red(line)}`);
+  }
+  return lines;
+};
+
 export const spec: Reporter = {
   name: "spec",
   format: summary => {
@@ -93,35 +105,18 @@ export const spec: Reporter = {
     let currentSuite: string[] = [];
 
     for (const r of summary.results) {
-      // Print suite headers when they change
       const suitePath = r.suite;
       for (let i = 0; i < suitePath.length; i++) {
         if (currentSuite[i] !== suitePath[i]) {
-          const indent = "  ".repeat(i);
-          lines.push(`${indent}${bold(suitePath[i]!)}`);
+          lines.push(`${"  ".repeat(i)}${bold(suitePath[i]!)}`);
         }
       }
       currentSuite = [...suitePath];
-
-      const indent = "  ".repeat(suitePath.length);
-      if (r.status === "pass") {
-        lines.push(`${indent}  ${green("pass")}  ${r.name} ${dim(`(${r.duration.toFixed(1)}ms)`)}`);
-      } else if (r.status === "todo") {
-        lines.push(`${indent}  ${cyan("todo")}  ${r.name}`);
-      } else if (r.status === "skip") {
-        lines.push(`${indent}  ${yellow("skip")}  ${r.name}`);
-      } else {
-        lines.push(`${indent}  ${red("FAIL")}  ${r.name}`);
-        const msg = errMessage(r);
-        for (const line of msg.split("\n")) {
-          lines.push(`${indent}        ${red(line)}`);
-        }
-      }
+      lines.push(...formatSpecResult(r, "  ".repeat(suitePath.length)));
     }
 
     lines.push("");
     lines.push(summaryLine(summary));
-
     return lines.join("\n");
   },
 };
