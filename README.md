@@ -2,7 +2,7 @@
 
 Minimal cross-runtime test runner. Zero dependencies.
 
-> **Note:** This project is in alpha. APIs may change.
+> **Note:** This project is in beta. APIs may change.
 
 Works identically on Node.js, Deno, Bun, Cloudflare Workers, and browsers.
 
