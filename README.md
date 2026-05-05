@@ -648,7 +648,7 @@ Mock instance methods (`mockReturnValue`, `mockImplementation`, `mock.calls`, et
 
 |  | Pure Test | Jest | Vitest |
 |---|---|---|---|
-| Startup time | ~5ms | ~500ms | ~200ms |
+| 236 tests | ~80-100ms | ~500ms+ | ~200ms+ |
 | Dependencies | 0 | 50+ | 30+ |
 | Config needed | No | Yes | Yes |
 | Node.js | Yes | Yes | Yes |
