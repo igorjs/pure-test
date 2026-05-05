@@ -50,7 +50,8 @@ export const checkAssertionState = (): void => {
 
 const ASYMMETRIC = Symbol.for("pure-test.asymmetric");
 
-interface AsymmetricMatcher {
+/** An asymmetric matcher for use inside toEqual, toMatchObject, etc. */
+export interface AsymmetricMatcher {
   readonly [ASYMMETRIC]: true;
   matches(value: unknown): boolean;
   toString(): string;
@@ -287,63 +288,89 @@ const getMockData = (value: unknown): MockData => {
   );
 };
 
-/** Fluent assertion builder. */
+/** Fluent assertion builder returned by `expect(value)`. */
 export interface Expectation<T> {
-  // ── Value matchers ──
+  /** Assert strict equality (`===`). */
   toBe(expected: T): void;
+  /** Assert deep structural equality. Shows diff on failure. */
   toEqual(expected: T): void;
+  /** Assert deep equality checking undefined properties and constructor identity. */
   toStrictEqual(expected: T): void;
+  /** Assert the value is truthy. */
   toBeTruthy(): void;
+  /** Assert the value is falsy. */
   toBeFalsy(): void;
+  /** Assert the value is `null`. */
   toBeNull(): void;
+  /** Assert the value is `undefined`. */
   toBeUndefined(): void;
+  /** Assert the value is not `undefined`. */
   toBeDefined(): void;
+  /** Assert the value is `NaN`. */
   toBeNaN(): void;
+  /** Assert the value is an instance of the given constructor. */
   toBeInstanceOf(ctor: new (...args: readonly unknown[]) => unknown): void;
+  /** Assert `typeof value === expected`. */
   toBeTypeOf(expected: string): void;
+  /** Assert the value satisfies a custom predicate function. */
   toSatisfy(predicate: (value: T) => boolean): void;
   /** Assert the value is a valid email address. */
   toBeEmail(): void;
-  /** Assert the value is a valid UUID, optionally of a specific version. */
+  /** Assert the value is a valid UUID (RFC 9562), optionally of a specific version (1-8). */
   toBeUUID(version?: number): void;
-
-  // ── Numeric matchers ──
+  /** Assert the value is greater than expected. */
   toBeGreaterThan(expected: number): void;
+  /** Assert the value is less than expected. */
   toBeLessThan(expected: number): void;
+  /** Assert the value is greater than or equal to expected. */
   toBeGreaterThanOrEqual(expected: number): void;
+  /** Assert the value is less than or equal to expected. */
   toBeLessThanOrEqual(expected: number): void;
+  /** Assert floating-point number is close to expected (default: 2 decimal digits). */
   toBeCloseTo(expected: number, numDigits?: number): void;
-
-  // ── Container matchers ──
+  /** Assert string or array contains the expected item (`===`). */
   toContain(expected: unknown): void;
+  /** Assert array contains an element deeply equal to expected. */
   toContainEqual(expected: unknown): void;
   /** Assert array matches exactly (same elements, same order, same length). */
   toMatchArray(expected: readonly unknown[]): void;
   /** Assert array contains the same elements regardless of order (multiset equality). */
   toMatchUnsortedArray(expected: readonly unknown[]): void;
+  /** Assert the string matches a regex or string pattern. */
   toMatch(pattern: RegExp | string): void;
+  /** Assert the value has the expected `.length`. */
   toHaveLength(expected: number): void;
+  /** Assert the object contains a subset of properties (deep partial match). */
   toMatchObject(expected: Record<string, unknown>): void;
+  /** Assert a property exists at the given dot-path or array path, optionally with a value. */
   toHaveProperty(path: string | readonly string[], ...value: readonly unknown[]): void;
-
-  // ── Error matchers ──
+  /** Assert a function throws, optionally matching the error message. */
   toThrow(messageOrPattern?: string | RegExp): void;
-
-  // ── Spy matchers ──
+  /** Assert a spy was called at least once. */
   toHaveBeenCalled(): void;
+  /** Assert a spy was called exactly N times. */
   toHaveBeenCalledTimes(expected: number): void;
+  /** Assert a spy was called with specific arguments (any call, deep equality). */
   toHaveBeenCalledWith(...args: readonly unknown[]): void;
+  /** Assert the spy's last call had specific arguments. */
   toHaveBeenLastCalledWith(...args: readonly unknown[]): void;
+  /** Assert the spy's Nth call (1-indexed) had specific arguments. */
   toHaveBeenNthCalledWith(n: number, ...args: readonly unknown[]): void;
+  /** Assert a spy returned successfully (not threw) at least once. */
   toHaveReturned(): void;
+  /** Assert a spy returned successfully exactly N times. */
   toHaveReturnedTimes(expected: number): void;
+  /** Assert a spy returned a specific value (any call, deep equality). */
   toHaveReturnedWith(expected: unknown): void;
+  /** Assert the spy's last return value matches. */
   toHaveLastReturnedWith(expected: unknown): void;
+  /** Assert the spy's Nth return value (1-indexed) matches. */
   toHaveNthReturnedWith(n: number, expected: unknown): void;
-
-  // ── Modifiers ──
+  /** Invert the assertion. */
   readonly not: Expectation<T>;
+  /** Unwrap a resolved promise, then chain matchers. Must be awaited. */
   readonly resolves: Expectation<Awaited<T>>;
+  /** Unwrap a rejected promise reason, then chain matchers. Must be awaited. */
   readonly rejects: Expectation<unknown>;
 }
 

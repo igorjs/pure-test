@@ -20,7 +20,7 @@
  * ```
  */
 
-export type { Expectation } from "./expect.js";
+export type { AsymmetricMatcher, Expectation } from "./expect.js";
 export { AssertionError, expect } from "./expect.js";
 export type { MockFn, MockResult } from "./mock.js";
 export {
