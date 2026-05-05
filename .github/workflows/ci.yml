@@ -10,11 +10,13 @@ permissions:
   contents: read
 
 jobs:
+  # ── Node matrix (4 jobs) ──────────────────────────────────────────────────
   lint-and-test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        node-version: [22, 24, 25]
+        node-version: [22, 23, 24, 25]
     steps:
       - uses: actions/checkout@v6
       - run: corepack enable
@@ -35,7 +37,7 @@ jobs:
       - name: Build
         run: pnpm run build
 
-      - name: Unit tests (Node)
+      - name: Unit tests
         run: pnpm test
 
       - name: Only tests
@@ -52,38 +54,92 @@ jobs:
           path: dist/
           retention-days: 1
 
+  # ── Deno (2 jobs) ─────────────────────────────────────────────────────────
   test-deno:
     needs: lint-and-test
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        deno-version: [v2.x, canary]
     steps:
       - uses: actions/checkout@v6
 
       - uses: denoland/setup-deno@v2
         with:
-          deno-version: v2.x
+          deno-version: ${{ matrix.deno-version }}
 
       - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
 
-      - name: Unit tests (Deno)
+      - name: Unit tests (Deno ${{ matrix.deno-version }})
         run: deno run --allow-all tests/self-test.mjs
 
+  # ── Bun (2 jobs) ──────────────────────────────────────────────────────────
   test-bun:
     needs: lint-and-test
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        bun-version: [latest, canary]
     steps:
       - uses: actions/checkout@v6
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: ${{ matrix.bun-version }}
 
       - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
 
-      - name: Unit tests (Bun)
+      - name: Unit tests (Bun ${{ matrix.bun-version }})
         run: bun tests/self-test.mjs
+
+  # ── Cloudflare Workers (miniflare) ────────────────────────────────────────
+  test-workers:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Install miniflare
+        run: npm install miniflare
+
+      - name: Workers smoke test
+        run: node tests/worker-test.mjs
+
+  # ── Browser (Chromium via Playwright) ─────────────────────────────────────
+  test-browser:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Install Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser smoke test
+        run: node tests/browser-test.mjs
