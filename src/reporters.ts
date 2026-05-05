@@ -14,8 +14,10 @@ export interface Reporter {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-const errMessage = (r: TestResult): string =>
-  r.error instanceof Error ? r.error.message : String(r.error ?? "");
+const errMessage = (r: TestResult): string => {
+  const msg = r.error instanceof Error ? r.error.message : String(r.error ?? "");
+  return msg;
+};
 
 const fullName = (r: TestResult): string => {
   const path = r.suite.length > 0 ? `${r.suite.join(" > ")} > ` : "";
@@ -93,7 +95,10 @@ export const spec: Reporter = {
         lines.push(`${indent}  skip  ${r.name}`);
       } else {
         lines.push(`${indent}  FAIL  ${r.name}`);
-        lines.push(`${indent}        ${errMessage(r)}`);
+        const msg = errMessage(r);
+        for (const line of msg.split("\n")) {
+          lines.push(`${indent}        ${line}`);
+        }
       }
     }
 

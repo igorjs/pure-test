@@ -240,6 +240,32 @@ const format = (v: unknown): string => {
   return String(v);
 };
 
+const formatPretty = (v: unknown, indent = 0): string => {
+  const pad = "  ".repeat(indent);
+  if (v === null) return "null";
+  if (v === undefined) return "undefined";
+  if (typeof v === "string") return `"${v}"`;
+  if (typeof v !== "object") return String(v);
+  if (Array.isArray(v)) {
+    if (v.length === 0) return "[]";
+    const items = v.map(i => `${pad}  ${formatPretty(i, indent + 1)}`).join(",\n");
+    return `[\n${items}\n${pad}]`;
+  }
+  const entries = Object.entries(v as Record<string, unknown>);
+  if (entries.length === 0) return "{}";
+  const props = entries
+    .map(([k, val]) => `${pad}  ${k}: ${formatPretty(val, indent + 1)}`)
+    .join(",\n");
+  return `{\n${props}\n${pad}}`;
+};
+
+const diff = (actual: unknown, expected: unknown): string => {
+  const a = formatPretty(actual);
+  const e = formatPretty(expected);
+  if (a === e) return "";
+  return `\n  Actual:   ${a}\n  Expected: ${e}`;
+};
+
 // ── Mock data extraction ────────────────────────────────────────────────────
 
 interface MockData {
@@ -440,12 +466,13 @@ expect.not = {
 };
 
 const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
-  const assert = (condition: boolean, msg: string, exp: unknown) => {
+  const assert = (condition: boolean, msg: string, exp: unknown, showDiff = false) => {
     assertionCount++;
     const pass = negated ? !condition : condition;
     if (!pass) {
       const prefix = negated ? "Expected NOT " : "Expected ";
-      throw new AssertionError(`${prefix}${msg}`, actual, exp);
+      const diffStr = showDiff && !negated ? diff(actual, exp) : "";
+      throw new AssertionError(`${prefix}${msg}${diffStr}`, actual, exp);
     }
   };
 
@@ -461,6 +488,7 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
         deepEqual(actual, expected),
         `${format(actual)} to equal ${format(expected)}`,
         expected,
+        true,
       );
     },
 
@@ -469,6 +497,7 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
         strictDeepEqual(actual, expected),
         `${format(actual)} to strictly equal ${format(expected)}`,
         expected,
+        true,
       );
     },
 
@@ -577,6 +606,7 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
         deepEqual(actual, expected),
         `${format(actual)} to match array ${format(expected)}`,
         expected,
+        true,
       );
     },
 
@@ -616,6 +646,7 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
         matchesObject(actual, expected),
         `${format(actual)} to match object ${format(expected)}`,
         expected,
+        true,
       );
     },
 
