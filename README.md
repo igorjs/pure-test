@@ -213,23 +213,35 @@ expect(value).toBeFalsy()
 expect(value).toBeNull()
 expect(value).toBeUndefined()
 expect(value).toBeDefined()
+expect(value).toBeNaN()                  // Number.isNaN
 expect(value).toBeInstanceOf(Class)
+expect(value).toBeTypeOf('string')       // typeof check (Vitest-compatible)
+expect(value).toSatisfy(fn)              // custom predicate
 expect(value).toBeGreaterThan(n)
 expect(value).toBeLessThan(n)
 expect(value).toBeGreaterThanOrEqual(n)
 expect(value).toBeLessThanOrEqual(n)
-expect(value).toContain(item)             // string or array
-expect(value).toMatch(/regex/)
+expect(value).toBeCloseTo(n, digits?)    // float comparison (default: 2 digits)
+expect(value).toContain(item)            // string or array (===)
+expect(value).toContainEqual(item)       // array (deep equality)
+expect(value).toMatch(/regex/)           // regex or string pattern
 expect(value).toHaveLength(n)
-expect(fn).toThrow()
-expect(fn).toThrow('message')
-expect(fn).toThrow(/pattern/)
-expect(spy).toHaveBeenCalled()           // called at least once
-expect(spy).toHaveBeenCalledTimes(n)     // called exactly n times
-expect(spy).toHaveBeenCalledWith(a, b)   // any call matches args (deep equality)
 expect(value).toMatchObject(subset)      // partial deep match
 expect(value).toHaveProperty('a.b', v)   // nested property exists, optional value
 expect(value).toStrictEqual(expected)    // deep equality + undefined props + constructors
+expect(fn).toThrow()
+expect(fn).toThrow('message')
+expect(fn).toThrow(/pattern/)
+expect(spy).toHaveBeenCalled()
+expect(spy).toHaveBeenCalledTimes(n)
+expect(spy).toHaveBeenCalledWith(a, b)
+expect(spy).toHaveBeenLastCalledWith(a)  // last call args
+expect(spy).toHaveBeenNthCalledWith(n, a) // nth call args (1-indexed)
+expect(spy).toHaveReturned()             // returned at least once
+expect(spy).toHaveReturnedTimes(n)       // returned exactly n times
+expect(spy).toHaveReturnedWith(value)    // any return matches
+expect(spy).toHaveLastReturnedWith(value)
+expect(spy).toHaveNthReturnedWith(n, value)
 ```
 
 #### Asymmetric Matchers
@@ -244,6 +256,16 @@ expect('hello world').toEqual(expect.stringContaining('world'))
 expect('abc-123').toEqual(expect.stringMatching(/\d+/))
 expect({ a: 1, b: 2 }).toEqual(expect.objectContaining({ a: 1 }))
 expect([1, 2, 3]).toEqual(expect.arrayContaining([3, 1]))
+expect({ price: 0.1 + 0.2 }).toEqual({ price: expect.closeTo(0.3) })
+```
+
+Negated asymmetric matchers:
+
+```ts
+expect([1, 2]).toEqual(expect.not.arrayContaining([3, 4]))
+expect({ a: 1 }).toEqual(expect.not.objectContaining({ b: 2 }))
+expect('hello').toEqual(expect.not.stringContaining('xyz'))
+expect('hello').toEqual(expect.not.stringMatching(/\d+/))
 ```
 
 Composable: nest matchers freely:
@@ -255,12 +277,15 @@ expect(spy).toHaveBeenCalledWith(
 )
 ```
 
-All assertions support `.not`:
+All assertions support `.not`, `.resolves`, and `.rejects`:
 
 ```ts
 expect(1).not.toBe(2)
 expect([1, 2]).not.toContain(3)
 expect(() => {}).not.toThrow()
+
+await expect(Promise.resolve(42)).resolves.toBe(42)
+await expect(Promise.reject(new Error('fail'))).rejects.toBeInstanceOf(Error)
 ```
 
 ### Spies
@@ -652,19 +677,27 @@ These features work the same way across all three frameworks. If you're using th
 | `expect().toBeTruthy/Falsy()` | Yes | Yes | Yes |
 | `expect().toBeNull/Undefined/Defined()` | Yes | Yes | Yes |
 | `expect().toBeInstanceOf()` | Yes | Yes | Yes |
+| `expect().toBeNaN()` | Yes | Yes | Yes |
+| `expect().toBeTypeOf()` | No | No | Yes |
+| `expect().toSatisfy()` | No | No | Yes |
 | `expect().toBeGreaterThan()` and friends | Yes | Yes | Yes |
-| `expect().toContain()` | Yes | Yes | Yes |
+| `expect().toBeCloseTo()` | Yes | Yes | Yes |
+| `expect().toContain()` / `toContainEqual()` | Yes | Yes | Yes |
 | `expect().toMatch()` | Yes | Yes | Yes |
 | `expect().toHaveLength()` | Yes | Yes | Yes |
-| `expect().toThrow()` | Yes | Yes | Yes |
-| `expect().toHaveBeenCalled()` | Yes | Yes | Yes |
-| `expect().toHaveBeenCalledTimes()` | Yes | Yes | Yes |
-| `expect().toHaveBeenCalledWith()` | Yes | Yes | Yes |
-| `expect().toMatchObject()` | Yes | Yes | Yes |
-| `expect().toHaveProperty()` | Yes | Yes | Yes |
+| `expect().toMatchObject()` / `toHaveProperty()` | Yes | Yes | Yes |
 | `expect().toStrictEqual()` | Yes | Yes | Yes |
+| `expect().toThrow()` | Yes | Yes | Yes |
+| `expect().toHaveBeenCalled/Times/With()` | Yes | Yes | Yes |
+| `expect().toHaveBeenLastCalledWith()` | Yes | Yes | Yes |
+| `expect().toHaveBeenNthCalledWith()` | Yes | Yes | Yes |
+| `expect().toHaveReturned/Times/With()` | Yes | Yes | Yes |
+| `expect().toHaveLastReturnedWith()` | Yes | Yes | Yes |
+| `expect().toHaveNthReturnedWith()` | Yes | Yes | Yes |
 | `expect.any()` / asymmetric matchers | Yes | Yes | Yes |
-| `expect().not.*` | Yes | Yes | Yes |
+| `expect.not.*` asymmetric matchers | Yes | Yes | Yes |
+| `expect.closeTo()` | Yes | Yes | Yes |
+| `.not` / `.resolves` / `.rejects` modifiers | Yes | Yes | Yes |
 | `spyFn()` / `fn()` / `vi.fn()` | Yes | Yes | Yes |
 | `spyOn()` | Yes | Yes | Yes |
 | `mockReturnValue` / `mockReturnValueOnce` | Yes | Yes | Yes |

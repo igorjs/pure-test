@@ -722,6 +722,249 @@ describe("toHaveBeenCalledWith", () => {
   });
 });
 
+// ── toBeNaN ──────────────────────────────────────────────────────────────────
+
+describe("toBeNaN", () => {
+  it("passes for NaN", () => {
+    expect(NaN).toBeNaN();
+  });
+
+  it("fails for numbers", () => {
+    expect(() => expect(42).toBeNaN()).toThrow();
+  });
+
+  it("not.toBeNaN passes for numbers", () => {
+    expect(0).not.toBeNaN();
+  });
+});
+
+// ── toBeCloseTo ──────────────────────────────────────────────────────────────
+
+describe("toBeCloseTo", () => {
+  it("passes for close floats", () => {
+    expect(0.1 + 0.2).toBeCloseTo(0.3);
+  });
+
+  it("fails for different numbers", () => {
+    expect(() => expect(0.1 + 0.2).toBeCloseTo(0.4)).toThrow();
+  });
+
+  it("respects numDigits precision", () => {
+    expect(0.555).toBeCloseTo(0.56, 1);
+  });
+});
+
+// ── toBeTypeOf ───────────────────────────────────────────────────────────────
+
+describe("toBeTypeOf", () => {
+  it("matches typeof string", () => {
+    expect("hello").toBeTypeOf("string");
+    expect(42).toBeTypeOf("number");
+    expect(true).toBeTypeOf("boolean");
+    expect(undefined).toBeTypeOf("undefined");
+    expect({}).toBeTypeOf("object");
+    expect(() => {
+      /* noop */
+    }).toBeTypeOf("function");
+  });
+
+  it("fails for wrong type", () => {
+    expect(() => expect("str").toBeTypeOf("number")).toThrow();
+  });
+});
+
+// ── toSatisfy ────────────────────────────────────────────────────────────────
+
+describe("toSatisfy", () => {
+  it("passes when predicate returns true", () => {
+    expect(3).toSatisfy(n => n > 0 && n < 10);
+  });
+
+  it("fails when predicate returns false", () => {
+    expect(() => expect(-1).toSatisfy(n => n > 0)).toThrow();
+  });
+});
+
+// ── toContainEqual ───────────────────────────────────────────────────────────
+
+describe("toContainEqual", () => {
+  it("finds deep equal element in array", () => {
+    expect([{ a: 1 }, { a: 2 }]).toContainEqual({ a: 2 });
+  });
+
+  it("fails when no element matches", () => {
+    expect(() => expect([{ a: 1 }]).toContainEqual({ a: 2 })).toThrow();
+  });
+
+  it("not.toContainEqual passes for missing element", () => {
+    expect([{ a: 1 }]).not.toContainEqual({ a: 99 });
+  });
+});
+
+// ── toMatch with string ──────────────────────────────────────────────────────
+
+describe("toMatch with string", () => {
+  it("matches substring pattern", () => {
+    expect("hello world").toMatch("world");
+  });
+
+  it("fails for non-matching string", () => {
+    expect(() => expect("hello").toMatch("xyz")).toThrow();
+  });
+});
+
+// ── spy return matchers ──────────────────────────────────────────────────────
+
+describe("toHaveBeenLastCalledWith", () => {
+  it("passes for last call args", () => {
+    const spy = spyFn();
+    spy(1);
+    spy(2);
+    spy(3);
+    expect(spy).toHaveBeenLastCalledWith(3);
+  });
+
+  it("fails for non-last args", () => {
+    const spy = spyFn();
+    spy(1);
+    spy(2);
+    expect(() => expect(spy).toHaveBeenLastCalledWith(1)).toThrow();
+  });
+});
+
+describe("toHaveBeenNthCalledWith", () => {
+  it("checks nth call args (1-indexed)", () => {
+    const spy = spyFn();
+    spy("a");
+    spy("b");
+    spy("c");
+    expect(spy).toHaveBeenNthCalledWith(2, "b");
+  });
+});
+
+describe("toHaveReturned", () => {
+  it("passes when spy returned", () => {
+    const spy = spyFn().mockReturnValue(42);
+    spy();
+    expect(spy).toHaveReturned();
+  });
+
+  it("fails when spy only threw", () => {
+    const spy = spyFn().mockThrow(new Error("boom"));
+    try {
+      spy();
+    } catch {
+      /* expected */
+    }
+    expect(spy).not.toHaveReturned();
+  });
+});
+
+describe("toHaveReturnedTimes", () => {
+  it("counts successful returns", () => {
+    const spy = spyFn().mockReturnValue(1);
+    spy();
+    spy();
+    expect(spy).toHaveReturnedTimes(2);
+  });
+});
+
+describe("toHaveReturnedWith", () => {
+  it("matches any return value", () => {
+    const spy = spyFn().mockReturnValueOnce(1).mockReturnValueOnce(2);
+    spy();
+    spy();
+    expect(spy).toHaveReturnedWith(2);
+  });
+
+  it("fails for unmatched return", () => {
+    const spy = spyFn().mockReturnValue(1);
+    spy();
+    expect(() => expect(spy).toHaveReturnedWith(99)).toThrow();
+  });
+});
+
+describe("toHaveLastReturnedWith", () => {
+  it("checks last return value", () => {
+    const spy = spyFn().mockReturnValueOnce(1).mockReturnValueOnce(2);
+    spy();
+    spy();
+    expect(spy).toHaveLastReturnedWith(2);
+  });
+});
+
+describe("toHaveNthReturnedWith", () => {
+  it("checks nth return value (1-indexed)", () => {
+    const spy = spyFn().mockReturnValueOnce("a").mockReturnValueOnce("b");
+    spy();
+    spy();
+    expect(spy).toHaveNthReturnedWith(1, "a");
+    expect(spy).toHaveNthReturnedWith(2, "b");
+  });
+});
+
+// ── resolves / rejects ───────────────────────────────────────────────────────
+
+describe("resolves", () => {
+  it("unwraps resolved promise", async () => {
+    await expect(Promise.resolve(42)).resolves.toBe(42);
+  });
+
+  it("throws when promise rejects", async () => {
+    let threw = false;
+    try {
+      await expect(Promise.reject(new Error("fail"))).resolves.toBe(42);
+    } catch {
+      threw = true;
+    }
+    expect(threw).toBe(true);
+  });
+});
+
+describe("rejects", () => {
+  it("unwraps rejected promise", async () => {
+    await expect(Promise.reject(new Error("boom"))).rejects.toBeInstanceOf(Error);
+  });
+
+  it("throws when promise resolves", async () => {
+    let threw = false;
+    try {
+      await expect(Promise.resolve(42)).rejects.toBe(42);
+    } catch {
+      threw = true;
+    }
+    expect(threw).toBe(true);
+  });
+});
+
+// ── expect.closeTo ───────────────────────────────────────────────────────────
+
+describe("expect.closeTo", () => {
+  it("matches approximately equal numbers in objects", () => {
+    expect({ price: 0.1 + 0.2 }).toEqual({ price: expect.closeTo(0.3) });
+  });
+});
+
+// ── expect.not.* ─────────────────────────────────────────────────────────────
+
+describe("expect.not (asymmetric)", () => {
+  it("expect.not.arrayContaining excludes elements", () => {
+    expect([1, 2]).toEqual(expect.not.arrayContaining([3, 4]));
+  });
+
+  it("expect.not.objectContaining excludes properties", () => {
+    expect({ a: 1 }).toEqual(expect.not.objectContaining({ b: 2 }));
+  });
+
+  it("expect.not.stringContaining excludes substring", () => {
+    expect("hello").toEqual(expect.not.stringContaining("xyz"));
+  });
+
+  it("expect.not.stringMatching excludes pattern", () => {
+    expect("hello").toEqual(expect.not.stringMatching(/\d+/));
+  });
+});
+
 // ── toMatchObject ────────────────────────────────────────────────────────────
 
 describe("toMatchObject", () => {

@@ -178,14 +178,22 @@ const format = (v: unknown): string => {
   return String(v);
 };
 
-const getMockCalls = (value: unknown): readonly unknown[][] => {
+// ── Mock data extraction ────────────────────────────────────────────────────
+
+interface MockData {
+  readonly calls: readonly unknown[][];
+  readonly results: ReadonlyArray<{ type: string; value: unknown }>;
+  readonly lastCall: readonly unknown[] | undefined;
+}
+
+const getMockData = (value: unknown): MockData => {
   const fn = value as Record<string, unknown> | null;
   if (fn && typeof fn === "function" && typeof fn["mock"] === "object" && fn["mock"] !== null) {
     const mock = fn["mock"] as Record<string, unknown>;
-    if (Array.isArray(mock["calls"])) return mock["calls"] as unknown[][];
+    if (Array.isArray(mock["calls"])) return mock as unknown as MockData;
   }
   throw new AssertionError(
-    "toHaveBeenCalled/toHaveBeenCalledWith requires a spy (created with spyFn or spyOn)",
+    "Spy assertion requires a spy (created with spyFn or spyOn)",
     value,
     "spy",
   );
@@ -193,52 +201,54 @@ const getMockCalls = (value: unknown): readonly unknown[][] => {
 
 /** Fluent assertion builder. */
 export interface Expectation<T> {
-  /** Assert strict equality (===). */
+  // ── Value matchers ──
   toBe(expected: T): void;
-  /** Assert deep structural equality. */
   toEqual(expected: T): void;
-  /** Assert the value is truthy. */
-  toBeTruthy(): void;
-  /** Assert the value is falsy. */
-  toBeFalsy(): void;
-  /** Assert the value is null. */
-  toBeNull(): void;
-  /** Assert the value is undefined. */
-  toBeUndefined(): void;
-  /** Assert the value is defined (not undefined). */
-  toBeDefined(): void;
-  /** Assert the value is an instance of a constructor. */
-  toBeInstanceOf(ctor: new (...args: readonly unknown[]) => unknown): void;
-  /** Assert the value is greater than expected. */
-  toBeGreaterThan(expected: number): void;
-  /** Assert the value is less than expected. */
-  toBeLessThan(expected: number): void;
-  /** Assert the value is greater than or equal to expected. */
-  toBeGreaterThanOrEqual(expected: number): void;
-  /** Assert the value is less than or equal to expected. */
-  toBeLessThanOrEqual(expected: number): void;
-  /** Assert the string or array contains the expected value. */
-  toContain(expected: unknown): void;
-  /** Assert the string matches a regex. */
-  toMatch(pattern: RegExp): void;
-  /** Assert the value has the expected length. */
-  toHaveLength(expected: number): void;
-  /** Assert a function throws (or async function rejects). */
-  toThrow(messageOrPattern?: string | RegExp): void;
-  /** Assert a spy was called at least once. */
-  toHaveBeenCalled(): void;
-  /** Assert a spy was called exactly N times. */
-  toHaveBeenCalledTimes(expected: number): void;
-  /** Assert a spy was called with specific arguments (any call). */
-  toHaveBeenCalledWith(...args: readonly unknown[]): void;
-  /** Assert the object contains a subset of properties (deep partial match). */
-  toMatchObject(expected: Record<string, unknown>): void;
-  /** Assert a property exists at the given path, optionally with a value. Pass NO_VALUE to check existence only. */
-  toHaveProperty(path: string | readonly string[], value?: unknown): void;
-  /** Assert deep equality with strict checks (undefined properties, constructor identity). */
   toStrictEqual(expected: T): void;
-  /** Invert the assertion. */
+  toBeTruthy(): void;
+  toBeFalsy(): void;
+  toBeNull(): void;
+  toBeUndefined(): void;
+  toBeDefined(): void;
+  toBeNaN(): void;
+  toBeInstanceOf(ctor: new (...args: readonly unknown[]) => unknown): void;
+  toBeTypeOf(expected: string): void;
+  toSatisfy(predicate: (value: T) => boolean): void;
+
+  // ── Numeric matchers ──
+  toBeGreaterThan(expected: number): void;
+  toBeLessThan(expected: number): void;
+  toBeGreaterThanOrEqual(expected: number): void;
+  toBeLessThanOrEqual(expected: number): void;
+  toBeCloseTo(expected: number, numDigits?: number): void;
+
+  // ── Container matchers ──
+  toContain(expected: unknown): void;
+  toContainEqual(expected: unknown): void;
+  toMatch(pattern: RegExp | string): void;
+  toHaveLength(expected: number): void;
+  toMatchObject(expected: Record<string, unknown>): void;
+  toHaveProperty(path: string | readonly string[], ...value: readonly unknown[]): void;
+
+  // ── Error matchers ──
+  toThrow(messageOrPattern?: string | RegExp): void;
+
+  // ── Spy matchers ──
+  toHaveBeenCalled(): void;
+  toHaveBeenCalledTimes(expected: number): void;
+  toHaveBeenCalledWith(...args: readonly unknown[]): void;
+  toHaveBeenLastCalledWith(...args: readonly unknown[]): void;
+  toHaveBeenNthCalledWith(n: number, ...args: readonly unknown[]): void;
+  toHaveReturned(): void;
+  toHaveReturnedTimes(expected: number): void;
+  toHaveReturnedWith(expected: unknown): void;
+  toHaveLastReturnedWith(expected: unknown): void;
+  toHaveNthReturnedWith(n: number, expected: unknown): void;
+
+  // ── Modifiers ──
   readonly not: Expectation<T>;
+  readonly resolves: Expectation<Awaited<T>>;
+  readonly rejects: Expectation<unknown>;
 }
 
 /** Create an expectation for a value. */
@@ -301,6 +311,40 @@ expect.arrayContaining = (expected: readonly unknown[]): AsymmetricMatcher => ({
   toString: () => `expect.arrayContaining(${format(expected)})`,
 });
 
+/** Match a number approximately equal to expected. */
+expect.closeTo = (expected: number, numDigits = 2): AsymmetricMatcher => ({
+  [ASYMMETRIC]: true,
+  matches: (v: unknown) => {
+    if (typeof v !== "number") return false;
+    return Math.abs(v - expected) < 10 ** -numDigits / 2;
+  },
+  toString: () => `expect.closeTo(${expected})`,
+});
+
+/** Negated asymmetric matchers. */
+expect.not = {
+  arrayContaining: (expected: readonly unknown[]): AsymmetricMatcher => ({
+    [ASYMMETRIC]: true,
+    matches: (v: unknown) => !expect.arrayContaining(expected).matches(v),
+    toString: () => `expect.not.arrayContaining(${format(expected)})`,
+  }),
+  objectContaining: (expected: Record<string, unknown>): AsymmetricMatcher => ({
+    [ASYMMETRIC]: true,
+    matches: (v: unknown) => !expect.objectContaining(expected).matches(v),
+    toString: () => `expect.not.objectContaining(${format(expected)})`,
+  }),
+  stringContaining: (expected: string): AsymmetricMatcher => ({
+    [ASYMMETRIC]: true,
+    matches: (v: unknown) => !expect.stringContaining(expected).matches(v),
+    toString: () => `expect.not.stringContaining("${expected}")`,
+  }),
+  stringMatching: (pattern: string | RegExp): AsymmetricMatcher => ({
+    [ASYMMETRIC]: true,
+    matches: (v: unknown) => !expect.stringMatching(pattern).matches(v),
+    toString: () => `expect.not.stringMatching(${pattern})`,
+  }),
+};
+
 const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
   const assert = (condition: boolean, msg: string, exp: unknown) => {
     const pass = negated ? !condition : condition;
@@ -311,6 +355,8 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
   };
 
   return {
+    // ── Value matchers ──
+
     toBe(expected: T) {
       assert(actual === expected, `${format(actual)} to be ${format(expected)}`, expected);
     },
@@ -319,6 +365,14 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
       assert(
         deepEqual(actual, expected),
         `${format(actual)} to equal ${format(expected)}`,
+        expected,
+      );
+    },
+
+    toStrictEqual(expected: T) {
+      assert(
+        strictDeepEqual(actual, expected),
+        `${format(actual)} to strictly equal ${format(expected)}`,
         expected,
       );
     },
@@ -343,9 +397,23 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
       assert(actual !== undefined, `${format(actual)} to be defined`, "defined");
     },
 
+    toBeNaN() {
+      assert(Number.isNaN(actual), `${format(actual)} to be NaN`, NaN);
+    },
+
     toBeInstanceOf(ctor: new (...args: readonly unknown[]) => unknown) {
       assert(actual instanceof ctor, `${format(actual)} to be instance of ${ctor.name}`, ctor.name);
     },
+
+    toBeTypeOf(expected: string) {
+      assert(typeof actual === expected, `typeof ${format(actual)} to be "${expected}"`, expected);
+    },
+
+    toSatisfy(predicate: (value: T) => boolean) {
+      assert(predicate(actual), `${format(actual)} to satisfy predicate`, "predicate");
+    },
+
+    // ── Numeric matchers ──
 
     toBeGreaterThan(expected: number) {
       assert((actual as number) > expected, `${format(actual)} > ${expected}`, expected);
@@ -363,6 +431,14 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
       assert((actual as number) <= expected, `${format(actual)} <= ${expected}`, expected);
     },
 
+    toBeCloseTo(expected: number, numDigits = 2) {
+      const pow = 10 ** -numDigits / 2;
+      const pass = Math.abs((actual as number) - expected) < pow;
+      assert(pass, `${format(actual)} to be close to ${expected} (${numDigits} digits)`, expected);
+    },
+
+    // ── Container matchers ──
+
     toContain(expected: unknown) {
       if (typeof actual === "string") {
         assert(
@@ -377,14 +453,46 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
       }
     },
 
-    toMatch(pattern: RegExp) {
-      assert(pattern.test(String(actual)), `${format(actual)} to match ${pattern}`, pattern);
+    toContainEqual(expected: unknown) {
+      if (!Array.isArray(actual)) {
+        throw new AssertionError("toContainEqual requires an array", actual, expected);
+      }
+      const match = actual.some(item => deepEqual(item, expected));
+      assert(match, `array to contain equal ${format(expected)}`, expected);
+    },
+
+    toMatch(pattern: RegExp | string) {
+      const re = typeof pattern === "string" ? new RegExp(pattern) : pattern;
+      assert(re.test(String(actual)), `${format(actual)} to match ${re}`, pattern);
     },
 
     toHaveLength(expected: number) {
       const len = (actual as { length: number }).length;
       assert(len === expected, `length ${len} to be ${expected}`, expected);
     },
+
+    toMatchObject(expected: Record<string, unknown>) {
+      assert(
+        matchesObject(actual, expected),
+        `${format(actual)} to match object ${format(expected)}`,
+        expected,
+      );
+    },
+
+    toHaveProperty(path: string | readonly string[], ...rest: readonly unknown[]) {
+      const { exists, value: propValue } = getProperty(actual, path);
+      const pathStr = Array.isArray(path) ? path.join(".") : path;
+      assert(exists, `object to have property "${pathStr}"`, pathStr);
+      if (exists && rest.length > 0) {
+        assert(
+          deepEqual(propValue, rest[0]),
+          `property "${pathStr}" to equal ${format(rest[0])} (got ${format(propValue)})`,
+          rest[0],
+        );
+      }
+    },
+
+    // ── Error matchers ──
 
     toThrow(messageOrPattern?: string | RegExp) {
       if (typeof actual !== "function") {
@@ -417,38 +525,10 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
       }
     },
 
-    toMatchObject(expected: Record<string, unknown>) {
-      assert(
-        matchesObject(actual, expected),
-        `${format(actual)} to match object ${format(expected)}`,
-        expected,
-      );
-    },
-
-    toHaveProperty(path: string | readonly string[], ...rest: readonly unknown[]) {
-      const { exists, value: propValue } = getProperty(actual, path);
-      const pathStr = Array.isArray(path) ? path.join(".") : path;
-      assert(exists, `object to have property "${pathStr}"`, pathStr);
-      if (exists && rest.length > 0) {
-        const value = rest[0];
-        assert(
-          deepEqual(propValue, value),
-          `property "${pathStr}" to equal ${format(value)} (got ${format(propValue)})`,
-          value,
-        );
-      }
-    },
-
-    toStrictEqual(expected: T) {
-      assert(
-        strictDeepEqual(actual, expected),
-        `${format(actual)} to strictly equal ${format(expected)}`,
-        expected,
-      );
-    },
+    // ── Spy matchers ──
 
     toHaveBeenCalled() {
-      const calls = getMockCalls(actual);
+      const { calls } = getMockData(actual);
       assert(
         calls.length > 0,
         `spy to have been called (called ${calls.length} times)`,
@@ -457,7 +537,7 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
     },
 
     toHaveBeenCalledTimes(expected: number) {
-      const calls = getMockCalls(actual);
+      const { calls } = getMockData(actual);
       assert(
         calls.length === expected,
         `spy to have been called ${expected} times (called ${calls.length} times)`,
@@ -466,13 +546,121 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
     },
 
     toHaveBeenCalledWith(...args: readonly unknown[]) {
-      const calls = getMockCalls(actual);
-      const match = calls.some(call => deepEqual(call, args));
-      assert(match, `spy to have been called with ${format(args)}`, args);
+      const { calls } = getMockData(actual);
+      assert(
+        calls.some(c => deepEqual(c, args)),
+        `spy to have been called with ${format(args)}`,
+        args,
+      );
     },
+
+    toHaveBeenLastCalledWith(...args: readonly unknown[]) {
+      const { lastCall } = getMockData(actual);
+      assert(
+        lastCall !== undefined && deepEqual(lastCall, args),
+        `spy last call to equal ${format(args)} (got ${format(lastCall)})`,
+        args,
+      );
+    },
+
+    toHaveBeenNthCalledWith(n: number, ...args: readonly unknown[]) {
+      const { calls } = getMockData(actual);
+      const call = calls[n - 1];
+      assert(
+        call !== undefined && deepEqual(call, args),
+        `spy call #${n} to equal ${format(args)} (got ${format(call)})`,
+        args,
+      );
+    },
+
+    toHaveReturned() {
+      const { results } = getMockData(actual);
+      const returned = results.some(r => r.type === "return");
+      assert(returned, "spy to have returned", "return");
+    },
+
+    toHaveReturnedTimes(expected: number) {
+      const { results } = getMockData(actual);
+      const count = results.filter(r => r.type === "return").length;
+      assert(
+        count === expected,
+        `spy to have returned ${expected} times (returned ${count} times)`,
+        expected,
+      );
+    },
+
+    toHaveReturnedWith(expected: unknown) {
+      const { results } = getMockData(actual);
+      const match = results.some(r => r.type === "return" && deepEqual(r.value, expected));
+      assert(match, `spy to have returned ${format(expected)}`, expected);
+    },
+
+    toHaveLastReturnedWith(expected: unknown) {
+      const { results } = getMockData(actual);
+      const last = results.length > 0 ? results[results.length - 1] : undefined;
+      assert(
+        last !== undefined && last.type === "return" && deepEqual(last.value, expected),
+        `spy last return to equal ${format(expected)} (got ${format(last?.value)})`,
+        expected,
+      );
+    },
+
+    toHaveNthReturnedWith(n: number, expected: unknown) {
+      const { results } = getMockData(actual);
+      const result = results[n - 1];
+      assert(
+        result !== undefined && result.type === "return" && deepEqual(result.value, expected),
+        `spy return #${n} to equal ${format(expected)} (got ${format(result?.value)})`,
+        expected,
+      );
+    },
+
+    // ── Modifiers ──
 
     get not(): Expectation<T> {
       return createExpectation(actual, !negated);
+    },
+
+    get resolves(): Expectation<Awaited<T>> {
+      if (!(actual instanceof Promise)) {
+        throw new AssertionError("resolves requires a Promise", actual, "Promise");
+      }
+      const pending = (actual as Promise<Awaited<T>>).then(
+        v => createExpectation(v, negated),
+        e => {
+          throw new AssertionError(`Promise rejected instead of resolving: ${e}`, e, "resolved");
+        },
+      );
+      return new Proxy({} as Expectation<Awaited<T>>, {
+        get: (_target, prop) => {
+          if (prop === "then") return pending.then.bind(pending);
+          return (...args: readonly unknown[]) =>
+            pending.then(exp => (exp[prop as keyof Expectation<Awaited<T>>] as Function)(...args));
+        },
+      });
+    },
+
+    get rejects(): Expectation<unknown> {
+      if (!(actual instanceof Promise)) {
+        throw new AssertionError("rejects requires a Promise", actual, "Promise");
+      }
+      const pending = (actual as Promise<unknown>).then(
+        v => {
+          throw new AssertionError(
+            `Promise resolved instead of rejecting: ${format(v)}`,
+            v,
+            "rejected",
+          );
+        },
+        e => createExpectation(e, negated),
+      );
+      return new Proxy({} as Expectation<unknown>, {
+        get: (_target, prop) => {
+          if (prop === "then") return pending.then.bind(pending);
+          return (...args: readonly unknown[]) =>
+            pending.then(exp => (exp[prop as keyof Expectation<unknown>] as Function)(...args));
+        },
+      });
     },
   };
 };
