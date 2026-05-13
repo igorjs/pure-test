@@ -69,6 +69,7 @@ function applyShard(files, shard) {
 
 function parseArgs(argv) {
   const targets = [];
+  const explicit = new Set();
   const opts = {
     reporter: "spec",
     grep: undefined,
@@ -101,6 +102,7 @@ function parseArgs(argv) {
         process.exit(1);
       }
       opts.reporter = value;
+      explicit.add("reporter");
     } else if (a === "--grep" || a === "-g" || a === "--testNamePattern" || a === "-t") {
       const value = argv[++i];
       if (!value || value.startsWith("-")) {
@@ -145,6 +147,7 @@ function parseArgs(argv) {
       opts.watch = true;
     } else if (a === "--no-parallel") {
       opts.parallel = false;
+      explicit.add("noParallel");
     } else if (a === "--runInBand" || a === "-i") {
       opts.runInBand = true;
       opts.parallel = false;
@@ -189,23 +192,35 @@ EXAMPLES:
     }
   }
 
-  return { targets: targets.length > 0 ? targets : ["."], ...opts };
+  return { targets: targets.length > 0 ? targets : ["."], ...opts, explicit };
 }
 
 // ── Conflict detection ──────────────────────────────────────────────────────
 
 function validateOpts(opts) {
-  const conflicts = [];
+  const errors = [];
+  const warnings = [];
+  const { explicit } = opts;
+
+  // Hard conflicts (exit 2)
   if (opts.watch && opts.listTests) {
-    conflicts.push("--watch and --listTests cannot be combined (listTests is one-shot, watch is long-running)");
+    errors.push("--watch and --listTests cannot be combined (listTests is one-shot, watch is long-running)");
   }
-  if (opts.watch && opts.passWithNoTests && opts.shard) {
-    // Edge case: watch + shard + passWithNoTests on a small suite leaves the watch
-    // child exiting 0 immediately every cycle, which is almost always a misconfiguration.
-    // Not a hard conflict; allowed.
+
+  // Soft conflicts (warn but proceed)
+  if (explicit.has("reporter") && opts.verbose) {
+    warnings.push(`--verbose overrides --reporter ${opts.reporter}`);
   }
-  if (conflicts.length > 0) {
-    for (const msg of conflicts) console.error(`Error: ${msg}`);
+  if (opts.runInBand && explicit.has("noParallel")) {
+    warnings.push("--no-parallel is redundant with --runInBand");
+  }
+  if (opts.bail && explicit.has("noParallel")) {
+    warnings.push("--no-parallel is redundant with --bail (bail uses sequential per-file run)");
+  }
+
+  for (const w of warnings) console.error(`Warning: ${w}`);
+  if (errors.length > 0) {
+    for (const msg of errors) console.error(`Error: ${msg}`);
     process.exit(2);
   }
 }
