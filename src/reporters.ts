@@ -1,7 +1,7 @@
 // Copyright 2026 igorjs. SPDX-License-Identifier: Apache-2.0
 
 /**
- * Output reporters. Pluggable: TAP, spec (human-readable), JSON, minimal.
+ * Output reporters. Pluggable: TAP, spec (human-readable), JSON, minimal, verbose.
  */
 
 import type { RunSummary, TestResult } from "./types.js";
@@ -9,6 +9,8 @@ import type { RunSummary, TestResult } from "./types.js";
 /** A reporter formats test results into a string. */
 export interface Reporter {
   readonly name: string;
+  /** Called after each individual test completes. Return a string to print it immediately. */
+  readonly onResult?: (result: TestResult) => string | undefined;
   readonly format: (summary: RunSummary) => string;
 }
 
@@ -174,9 +176,31 @@ export const minimal: Reporter = {
   },
 };
 
+// ── Verbose (streaming spec) ─────────────────────────────────────────────────
+
+export const verbose: Reporter = (() => {
+  let trackedSuite: string[] = [];
+  return {
+    name: "verbose",
+    onResult: r => {
+      const lines: string[] = [];
+      const suitePath = r.suite;
+      for (let i = 0; i < suitePath.length; i++) {
+        if (trackedSuite[i] !== suitePath[i]) {
+          lines.push(`${"  ".repeat(i)}${bold(suitePath[i]!)}`);
+        }
+      }
+      trackedSuite = [...suitePath];
+      lines.push(...formatSpecResult(r, "  ".repeat(suitePath.length)));
+      return lines.join("\n");
+    },
+    format: summary => `\n${summaryLine(summary)}`,
+  };
+})();
+
 // ── Registry ────────────────────────────────────────────────────────────────
 
-const reporters: Record<string, Reporter> = { tap, spec, json, minimal };
+const reporters: Record<string, Reporter> = { tap, spec, json, minimal, verbose };
 
 /** Get a reporter by name. Defaults to 'spec'. */
 export const getReporter = (name?: string): Reporter => reporters[name ?? "spec"] ?? spec;

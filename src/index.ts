@@ -35,7 +35,7 @@ export {
   vi,
 } from "./mock.js";
 export type { Reporter } from "./reporters.js";
-export { getReporter, json, minimal, spec, tap } from "./reporters.js";
+export { getReporter, json, minimal, spec, tap, verbose } from "./reporters.js";
 export {
   afterAll,
   afterEach,
@@ -47,6 +47,7 @@ export {
   run,
   setBail,
   setCLIMode,
+  setForceExit,
   setGrep,
   setReporter,
   test,

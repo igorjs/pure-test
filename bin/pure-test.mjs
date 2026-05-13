@@ -21,7 +21,7 @@ import { readdir, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 
 const TEST_PATTERNS = [".test.mjs", ".test.js", ".spec.mjs", ".spec.js"];
-const VALID_REPORTERS = ["spec", "tap", "json", "minimal"];
+const VALID_REPORTERS = ["spec", "tap", "json", "minimal", "verbose"];
 
 const isTestFile = (name) => TEST_PATTERNS.some((p) => name.endsWith(p));
 
@@ -45,6 +45,8 @@ function parseArgs(argv) {
   let reporter = "spec";
   let grep = undefined;
   let bail = false;
+  let verbose = false;
+  let forceExit = false;
 
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--reporter" || argv[i] === "-r") {
@@ -67,6 +69,10 @@ function parseArgs(argv) {
       grep = value;
     } else if (argv[i] === "--bail" || argv[i] === "-b") {
       bail = true;
+    } else if (argv[i] === "--verbose" || argv[i] === "-v") {
+      verbose = true;
+    } else if (argv[i] === "--force-exit" || argv[i] === "--forceExit") {
+      forceExit = true;
     } else if (argv[i] === "--help" || argv[i] === "-h") {
       console.log(`
 pure-test - minimal cross-runtime test runner
@@ -75,10 +81,12 @@ USAGE:
   pure-test [paths...] [options]
 
 OPTIONS:
-  --reporter, -r <name>      Output format: spec (default), tap, json, minimal
+  --reporter, -r <name>      Output format: spec (default), tap, json, minimal, verbose
   --grep, -g <pattern>       Run only tests matching pattern (regex)
   --testNamePattern, -t      Alias for --grep (Jest/Vitest compatible)
   --bail, -b                 Stop after first test failure
+  --verbose, -v              Stream each test result as it runs
+  --force-exit               Force exit after all tests complete (prevents hanging on open handles)
   --help, -h                 Show this help
 
 EXAMPLES:
@@ -86,6 +94,8 @@ EXAMPLES:
   pure-test tests/ --reporter tap
   pure-test tests/ --grep "auth"
   pure-test tests/ -t "User.*login"
+  pure-test tests/ --verbose
+  pure-test tests/ --force-exit
   pure-test tests/math.test.mjs tests/string.test.mjs
 `);
       process.exit(0);
@@ -94,11 +104,11 @@ EXAMPLES:
     }
   }
 
-  return { targets: targets.length > 0 ? targets : ["."], reporter, grep, bail };
+  return { targets: targets.length > 0 ? targets : ["."], reporter, grep, bail, verbose, forceExit };
 }
 
 async function main() {
-  const { targets, reporter, grep, bail } = parseArgs(process.argv.slice(2));
+  const { targets, reporter, grep, bail, verbose, forceExit } = parseArgs(process.argv.slice(2));
 
   // Collect all test files
   const testFiles = [];
@@ -129,11 +139,12 @@ async function main() {
   console.error("");
 
   // Import the runner and set CLI mode
-  const { setBail, setCLIMode, setGrep, setReporter, run } = await import("../dist/index.js");
+  const { setBail, setCLIMode, setForceExit, setGrep, setReporter, run } = await import("../dist/index.js");
   setCLIMode();
-  setReporter(reporter);
+  setReporter(verbose ? "verbose" : reporter);
   if (grep) setGrep(grep);
   if (bail) setBail();
+  if (forceExit) setForceExit();
 
   // Import all test files (tests register during import)
   for (const file of testFiles) {

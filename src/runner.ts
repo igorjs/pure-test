@@ -44,6 +44,7 @@ let activeReporter: Reporter | undefined;
 let grepPattern: RegExp | undefined;
 let bailOnFailure = false;
 let bailed = false;
+let forceExit = false;
 
 /** Mark that run() will be called externally (by CLI). Disables auto-run. */
 export const setCLIMode = (): void => {
@@ -59,6 +60,11 @@ export const setReporter = (nameOrReporter: string | Reporter): void => {
 /** Stop running tests after the first failure. */
 export const setBail = (enabled = true): void => {
   bailOnFailure = enabled;
+};
+
+/** Force process exit after all tests complete, preventing hanging on open handles. */
+export const setForceExit = (enabled = true): void => {
+  forceExit = enabled;
 };
 
 /** Filter tests by name pattern. Matches against the full name (describe > test). */
@@ -452,13 +458,20 @@ const runSuiteTests = async (
 ): Promise<TestResult[]> => {
   if (concurrent) {
     const promises = tests.map(t => runTest(t, suitePath, beforeEach, afterEach, effectiveOnly));
-    return Promise.all(promises);
+    const resolved = await Promise.all(promises);
+    for (const r of resolved) {
+      const line = activeReporter?.onResult?.(r);
+      if (line !== undefined) console.log(line);
+    }
+    return resolved;
   }
   const results: TestResult[] = [];
   for (const t of tests) {
     if (bailed) break;
     const result = await runTest(t, suitePath, beforeEach, afterEach, effectiveOnly);
     results.push(result);
+    const line = activeReporter?.onResult?.(result);
+    if (line !== undefined) console.log(line);
     if (bailOnFailure && result.status === "fail") {
       bailed = true;
     }
@@ -548,17 +561,13 @@ export const run = async (): Promise<RunSummary> => {
   const reporter = activeReporter ?? getReporter("spec");
   console.log(reporter.format(summary));
 
-  // Exit with failure code if any tests failed
-  if (summary.failed > 0) {
+  const exitCode = summary.failed > 0 ? 1 : 0;
+  if (exitCode !== 0 || forceExit) {
     const g = globalThis as Record<string, unknown>;
     const proc = g["process"] as { exit?(code: number): void } | undefined;
-    if (proc?.exit) {
-      proc.exit(1);
-    }
+    if (proc?.exit) proc.exit(exitCode);
     const deno = g["Deno"] as { exit?(code: number): void } | undefined;
-    if (deno?.exit) {
-      deno.exit(1);
-    }
+    if (deno?.exit) deno.exit(exitCode);
   }
 
   return summary;
@@ -580,4 +589,5 @@ export const reset = (): void => {
   grepPattern = undefined;
   bailOnFailure = false;
   bailed = false;
+  forceExit = false;
 };
