@@ -47,6 +47,8 @@ import {
   verbose,
   vi,
 } from "../dist/index.js";
+// Side-effect import: registers CLI integration tests (spawns bin/pure-test.mjs)
+import "./cli.test.mjs";
 
 // ── expect.toBe ─────────────────────────────────────────────────────────────
 
