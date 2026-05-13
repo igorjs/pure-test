@@ -85,6 +85,7 @@ function parseArgs(argv) {
     shard: undefined,
     watch: false,
     parallel: true,
+    runInBand: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -144,6 +145,9 @@ function parseArgs(argv) {
       opts.watch = true;
     } else if (a === "--no-parallel") {
       opts.parallel = false;
+    } else if (a === "--runInBand" || a === "-i") {
+      opts.runInBand = true;
+      opts.parallel = false;
     } else if (a === "--help" || a === "-h") {
       console.log(`
 pure-test - minimal cross-runtime test runner
@@ -163,6 +167,7 @@ OPTIONS:
   --force-exit               Force exit after all tests complete (prevents hanging on open handles)
   --watch, -w                Re-run tests on file change (spawns fresh process per change)
   --no-parallel              Import test files sequentially (default: parallel)
+  --runInBand, -i            Force everything serial: sequential imports + override describe.concurrent
   --passWithNoTests          Exit 0 even when no test files are found
   --listTests                Print discovered test file paths and exit
   --clearMocks               Auto-call clearAllMocks() before each test
@@ -185,6 +190,24 @@ EXAMPLES:
   }
 
   return { targets: targets.length > 0 ? targets : ["."], ...opts };
+}
+
+// ── Conflict detection ──────────────────────────────────────────────────────
+
+function validateOpts(opts) {
+  const conflicts = [];
+  if (opts.watch && opts.listTests) {
+    conflicts.push("--watch and --listTests cannot be combined (listTests is one-shot, watch is long-running)");
+  }
+  if (opts.watch && opts.passWithNoTests && opts.shard) {
+    // Edge case: watch + shard + passWithNoTests on a small suite leaves the watch
+    // child exiting 0 immediately every cycle, which is almost always a misconfiguration.
+    // Not a hard conflict; allowed.
+  }
+  if (conflicts.length > 0) {
+    for (const msg of conflicts) console.error(`Error: ${msg}`);
+    process.exit(2);
+  }
 }
 
 // ── Cross-runtime spawn helper ──────────────────────────────────────────────
@@ -308,6 +331,7 @@ async function discoverAll(targets) {
 
 async function main() {
   const opts = parseArgs(process.argv.slice(2));
+  validateOpts(opts);
 
   // Watch mode: parent process supervises a child running the same args (minus --watch)
   if (opts.watch) {
@@ -357,6 +381,7 @@ async function main() {
   if (opts.clearMocks) runner.setAutoClearMocks();
   if (opts.resetMocks) runner.setAutoResetMocks();
   if (opts.restoreMocks) runner.setAutoRestoreMocks();
+  if (opts.runInBand) runner.setRunInBand();
 
   // Bail mode: import-then-run per file, stop importing once bail triggers
   if (opts.bail) {

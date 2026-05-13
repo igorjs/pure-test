@@ -65,6 +65,7 @@ export {
   setForceExit,
   setGrep,
   setReporter,
+  setRunInBand,
   test,
 } from "./runner.js";
 export type { FakeableAPI, FakeTimerConfig } from "./timers.js";

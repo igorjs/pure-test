@@ -50,6 +50,7 @@ let defaultTimeout: number | undefined;
 let autoClearMocks = false;
 let autoResetMocks = false;
 let autoRestoreMocks = false;
+let runInBand = false;
 
 /** Mark that run() will be called externally (by CLI). Disables auto-run. */
 export const setCLIMode = (): void => {
@@ -90,6 +91,15 @@ export const setAutoResetMocks = (enabled = true): void => {
 /** Auto-call restoreAllMocks() before each test. */
 export const setAutoRestoreMocks = (enabled = true): void => {
   autoRestoreMocks = enabled;
+};
+
+/**
+ * Force all tests to run sequentially in this process, overriding any
+ * `describe.concurrent` blocks. Useful for debugging non-deterministic
+ * interactions or for resource-constrained environments.
+ */
+export const setRunInBand = (enabled = true): void => {
+  runInBand = enabled;
 };
 
 /** Filter tests by name pattern. Matches against the full name (describe > test). */
@@ -491,7 +501,7 @@ const runSuiteTests = async (
   effectiveOnly: boolean,
   concurrent: boolean,
 ): Promise<TestResult[]> => {
-  if (concurrent) {
+  if (concurrent && !runInBand) {
     const promises = tests.map(t => runTest(t, suitePath, beforeEach, afterEach, effectiveOnly));
     const resolved = await Promise.all(promises);
     for (const r of resolved) {
@@ -661,4 +671,5 @@ export const reset = (): void => {
   autoClearMocks = false;
   autoResetMocks = false;
   autoRestoreMocks = false;
+  runInBand = false;
 };
