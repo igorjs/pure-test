@@ -57,6 +57,19 @@ export interface AsymmetricMatcher {
   toString(): string;
 }
 
+/** Return value of a custom matcher function passed to expect.extend(). */
+export interface CustomMatcherResult {
+  pass: boolean;
+  message(): string;
+}
+
+/** A custom matcher function registered via expect.extend(). */
+export type CustomMatcher = (
+  this: { readonly isNot: boolean },
+  received: unknown,
+  ...args: readonly unknown[]
+) => CustomMatcherResult;
+
 const isAsymmetric = (v: unknown): v is AsymmetricMatcher =>
   v !== null && typeof v === "object" && ASYMMETRIC in v;
 
@@ -468,6 +481,11 @@ expect.hasAssertions = (): void => {
   expectAnyAssertions = true;
 };
 
+/** Register custom matchers. Extend expect() with project-specific assertions. */
+expect.extend = (matchers: Record<string, CustomMatcher>): void => {
+  Object.assign(customMatchers, matchers);
+};
+
 /** Negated asymmetric matchers. */
 expect.not = {
   arrayContaining: (expected: readonly unknown[]): AsymmetricMatcher => ({
@@ -492,6 +510,10 @@ expect.not = {
   }),
 };
 
+// ── Custom matchers (expect.extend) ──────────────────────────────────────────
+
+const customMatchers: Record<string, CustomMatcher> = {};
+
 const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
   const assert = (condition: boolean, msg: string, exp: unknown, showDiff = false) => {
     assertionCount++;
@@ -503,7 +525,7 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
     }
   };
 
-  return {
+  const base: Expectation<T> = {
     // ── Value matchers ──
 
     toBe(expected: T) {
@@ -861,4 +883,20 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
       });
     },
   };
+
+  return new Proxy(base, {
+    get(target, prop: string | symbol) {
+      if (typeof prop !== "string") return Reflect.get(target, prop);
+      const own = Reflect.get(target, prop);
+      if (own !== undefined) return own;
+      const customFn = customMatchers[prop];
+      if (!customFn) return undefined;
+      return (...args: readonly unknown[]) => {
+        const result = customFn.call({ isNot: negated }, actual, ...args);
+        assertionCount++;
+        const pass = negated ? !result.pass : result.pass;
+        if (!pass) throw new AssertionError(result.message(), actual, undefined);
+      };
+    },
+  });
 };

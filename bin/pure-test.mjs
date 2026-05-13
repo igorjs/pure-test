@@ -44,9 +44,16 @@ function parseArgs(argv) {
   const targets = [];
   let reporter = "spec";
   let grep = undefined;
+  let testPathPattern = undefined;
   let bail = false;
   let verbose = false;
   let forceExit = false;
+  let testTimeout = undefined;
+  let passWithNoTests = false;
+  let listTests = false;
+  let clearMocks = false;
+  let resetMocks = false;
+  let restoreMocks = false;
 
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--reporter" || argv[i] === "-r") {
@@ -67,12 +74,37 @@ function parseArgs(argv) {
         process.exit(1);
       }
       grep = value;
+    } else if (argv[i] === "--testPathPattern") {
+      const value = argv[++i];
+      if (!value || value.startsWith("-")) {
+        console.error(`Error: --testPathPattern requires a pattern`);
+        process.exit(1);
+      }
+      testPathPattern = value;
+    } else if (argv[i] === "--testTimeout") {
+      const value = argv[++i];
+      const ms = Number(value);
+      if (!value || Number.isNaN(ms) || ms < 0) {
+        console.error(`Error: --testTimeout requires a non-negative number (got ${value})`);
+        process.exit(1);
+      }
+      testTimeout = ms;
     } else if (argv[i] === "--bail" || argv[i] === "-b") {
       bail = true;
     } else if (argv[i] === "--verbose" || argv[i] === "-v") {
       verbose = true;
     } else if (argv[i] === "--force-exit" || argv[i] === "--forceExit") {
       forceExit = true;
+    } else if (argv[i] === "--passWithNoTests") {
+      passWithNoTests = true;
+    } else if (argv[i] === "--listTests") {
+      listTests = true;
+    } else if (argv[i] === "--clearMocks") {
+      clearMocks = true;
+    } else if (argv[i] === "--resetMocks") {
+      resetMocks = true;
+    } else if (argv[i] === "--restoreMocks") {
+      restoreMocks = true;
     } else if (argv[i] === "--help" || argv[i] === "-h") {
       console.log(`
 pure-test - minimal cross-runtime test runner
@@ -82,11 +114,18 @@ USAGE:
 
 OPTIONS:
   --reporter, -r <name>      Output format: spec (default), tap, json, minimal, verbose
-  --grep, -g <pattern>       Run only tests matching pattern (regex)
+  --grep, -g <pattern>       Run only tests matching name pattern (regex)
   --testNamePattern, -t      Alias for --grep (Jest/Vitest compatible)
+  --testPathPattern <pat>    Filter test files by path pattern (regex)
+  --testTimeout <ms>         Default timeout for each test (ms)
   --bail, -b                 Stop after first test failure
   --verbose, -v              Stream each test result as it runs
   --force-exit               Force exit after all tests complete (prevents hanging on open handles)
+  --passWithNoTests          Exit 0 even when no test files are found
+  --listTests                Print discovered test file paths and exit
+  --clearMocks               Auto-call clearAllMocks() before each test
+  --resetMocks               Auto-call resetAllMocks() before each test
+  --restoreMocks             Auto-call restoreAllMocks() before each test
   --help, -h                 Show this help
 
 EXAMPLES:
@@ -94,8 +133,12 @@ EXAMPLES:
   pure-test tests/ --reporter tap
   pure-test tests/ --grep "auth"
   pure-test tests/ -t "User.*login"
+  pure-test tests/ --testPathPattern "user|auth"
+  pure-test tests/ --testTimeout 5000
   pure-test tests/ --verbose
   pure-test tests/ --force-exit
+  pure-test tests/ --clearMocks
+  pure-test tests/ --listTests
   pure-test tests/math.test.mjs tests/string.test.mjs
 `);
       process.exit(0);
@@ -104,14 +147,42 @@ EXAMPLES:
     }
   }
 
-  return { targets: targets.length > 0 ? targets : ["."], reporter, grep, bail, verbose, forceExit };
+  return {
+    targets: targets.length > 0 ? targets : ["."],
+    reporter,
+    grep,
+    testPathPattern,
+    bail,
+    verbose,
+    forceExit,
+    testTimeout,
+    passWithNoTests,
+    listTests,
+    clearMocks,
+    resetMocks,
+    restoreMocks,
+  };
 }
 
 async function main() {
-  const { targets, reporter, grep, bail, verbose, forceExit } = parseArgs(process.argv.slice(2));
+  const {
+    targets,
+    reporter,
+    grep,
+    testPathPattern,
+    bail,
+    verbose,
+    forceExit,
+    testTimeout,
+    passWithNoTests,
+    listTests,
+    clearMocks,
+    resetMocks,
+    restoreMocks,
+  } = parseArgs(process.argv.slice(2));
 
   // Collect all test files
-  const testFiles = [];
+  let testFiles = [];
   for (const target of targets) {
     const abs = resolve(target);
     const s = await stat(abs).catch(() => null);
@@ -126,10 +197,28 @@ async function main() {
     }
   }
 
+  // Filter by path pattern
+  if (testPathPattern) {
+    const re = new RegExp(testPathPattern);
+    testFiles = testFiles.filter((f) => re.test(f));
+  }
+
   if (testFiles.length === 0) {
+    if (passWithNoTests) {
+      console.error("No test files found (--passWithNoTests).");
+      process.exit(0);
+    }
     console.error("No test files found.");
     console.error("Looking for: *.test.mjs, *.test.js, *.spec.mjs, *.spec.js");
     process.exit(1);
+  }
+
+  // --listTests: print paths and exit
+  if (listTests) {
+    for (const f of testFiles) {
+      console.log(f);
+    }
+    process.exit(0);
   }
 
   console.error(`Found ${testFiles.length} test file${testFiles.length > 1 ? "s" : ""}:`);
@@ -139,12 +228,27 @@ async function main() {
   console.error("");
 
   // Import the runner and set CLI mode
-  const { setBail, setCLIMode, setForceExit, setGrep, setReporter, run } = await import("../dist/index.js");
+  const {
+    setBail,
+    setAutoClearMocks,
+    setAutoResetMocks,
+    setAutoRestoreMocks,
+    setCLIMode,
+    setDefaultTimeout,
+    setForceExit,
+    setGrep,
+    setReporter,
+    run,
+  } = await import("../dist/index.js");
   setCLIMode();
   setReporter(verbose ? "verbose" : reporter);
   if (grep) setGrep(grep);
   if (bail) setBail();
   if (forceExit) setForceExit();
+  if (testTimeout !== undefined) setDefaultTimeout(testTimeout);
+  if (clearMocks) setAutoClearMocks();
+  if (resetMocks) setAutoResetMocks();
+  if (restoreMocks) setAutoRestoreMocks();
 
   // Import all test files (tests register during import)
   for (const file of testFiles) {

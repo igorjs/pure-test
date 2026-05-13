@@ -20,7 +20,12 @@
  * ```
  */
 
-export type { AsymmetricMatcher, Expectation } from "./expect.js";
+export type {
+  AsymmetricMatcher,
+  CustomMatcher,
+  CustomMatcherResult,
+  Expectation,
+} from "./expect.js";
 export { AssertionError, expect } from "./expect.js";
 export type { MockFn, MockResult } from "./mock.js";
 export {
@@ -32,6 +37,8 @@ export {
   restoreAllMocks,
   spyFn,
   spyOn,
+  stubEnv,
+  stubGlobal,
   vi,
 } from "./mock.js";
 export type { Reporter } from "./reporters.js";
@@ -45,8 +52,12 @@ export {
   it,
   reset,
   run,
+  setAutoClearMocks,
+  setAutoResetMocks,
+  setAutoRestoreMocks,
   setBail,
   setCLIMode,
+  setDefaultTimeout,
   setForceExit,
   setGrep,
   setReporter,

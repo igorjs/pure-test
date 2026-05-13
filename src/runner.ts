@@ -7,6 +7,7 @@
  */
 
 import { checkAssertionState, resetAssertionState } from "./expect.js";
+import { clearAllMocks, resetAllMocks, restoreAllMocks } from "./mock.js";
 import { getReporter, type Reporter } from "./reporters.js";
 import { getRealClearTimeout, getRealSetTimeout, getRealTime } from "./timers.js";
 import type { RunSummary, Suite, Test, TestOptions, TestResult } from "./types.js";
@@ -45,6 +46,10 @@ let grepPattern: RegExp | undefined;
 let bailOnFailure = false;
 let bailed = false;
 let forceExit = false;
+let defaultTimeout: number | undefined;
+let autoClearMocks = false;
+let autoResetMocks = false;
+let autoRestoreMocks = false;
 
 /** Mark that run() will be called externally (by CLI). Disables auto-run. */
 export const setCLIMode = (): void => {
@@ -65,6 +70,26 @@ export const setBail = (enabled = true): void => {
 /** Force process exit after all tests complete, preventing hanging on open handles. */
 export const setForceExit = (enabled = true): void => {
   forceExit = enabled;
+};
+
+/** Set a global default timeout (ms) applied to every test that doesn't set its own. */
+export const setDefaultTimeout = (ms: number): void => {
+  defaultTimeout = ms;
+};
+
+/** Auto-call clearAllMocks() before each test. */
+export const setAutoClearMocks = (enabled = true): void => {
+  autoClearMocks = enabled;
+};
+
+/** Auto-call resetAllMocks() before each test. */
+export const setAutoResetMocks = (enabled = true): void => {
+  autoResetMocks = enabled;
+};
+
+/** Auto-call restoreAllMocks() before each test. */
+export const setAutoRestoreMocks = (enabled = true): void => {
+  autoRestoreMocks = enabled;
 };
 
 /** Filter tests by name pattern. Matches against the full name (describe > test). */
@@ -425,12 +450,16 @@ const runTest = async (
     const start = now();
     try {
       resetAssertionState();
+      if (autoClearMocks) clearAllMocks();
+      if (autoResetMocks) resetAllMocks();
+      if (autoRestoreMocks) restoreAllMocks();
       for (const hook of beforeEachHooks) {
         await hook();
       }
 
-      if (t.timeout !== undefined) {
-        await raceTimeout(t.fn, t.timeout, t.name);
+      const timeout = t.timeout ?? defaultTimeout;
+      if (timeout !== undefined) {
+        await raceTimeout(t.fn, timeout, t.name);
       } else {
         await t.fn();
       }
@@ -590,4 +619,8 @@ export const reset = (): void => {
   bailOnFailure = false;
   bailed = false;
   forceExit = false;
+  defaultTimeout = undefined;
+  autoClearMocks = false;
+  autoResetMocks = false;
+  autoRestoreMocks = false;
 };

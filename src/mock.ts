@@ -110,6 +110,48 @@ interface SpyRecord {
 const spyRegistry: SpyRecord[] = [];
 let globalCallOrder = 0;
 
+// ── Stub registry ────────────────────────────────────────────────────────────
+
+interface EnvStub {
+  readonly key: string;
+  readonly original: string | undefined;
+  readonly backend: "process" | "deno";
+}
+interface GlobalStub {
+  readonly key: string;
+  readonly original: unknown;
+}
+
+const envStubs: EnvStub[] = [];
+const globalStubs: GlobalStub[] = [];
+
+const getEnvBackend = ():
+  | { type: "process"; env: Record<string, string | undefined> }
+  | {
+      type: "deno";
+      env: {
+        get(k: string): string | undefined;
+        set(k: string, v: string): void;
+        delete(k: string): void;
+      };
+    }
+  | undefined => {
+  const g = globalThis as Record<string, unknown>;
+  const proc = g["process"] as { env?: Record<string, string | undefined> } | undefined;
+  if (proc?.env) return { type: "process", env: proc.env };
+  const deno = g["Deno"] as
+    | {
+        env?: {
+          get(k: string): string | undefined;
+          set(k: string, v: string): void;
+          delete(k: string): void;
+        };
+      }
+    | undefined;
+  if (deno?.env) return { type: "deno", env: deno.env };
+  return undefined;
+};
+
 // ── fn() ────────────────────────────────────────────────────────────────────
 
 /** Create a standalone spy function. */
@@ -404,9 +446,31 @@ export const mockDeep = <T extends Record<string, unknown>>(obj: T, seen?: Set<u
   return obj;
 };
 
+// ── stubEnv() / stubGlobal() ─────────────────────────────────────────────────
+
+/** Temporarily set an environment variable. Restored by restoreAllMocks(). Works on Node, Bun, and Deno. */
+export const stubEnv = (key: string, value: string): void => {
+  const backend = getEnvBackend();
+  if (!backend) return;
+  if (backend.type === "process") {
+    envStubs.push({ key, original: backend.env[key], backend: "process" });
+    backend.env[key] = value;
+  } else {
+    envStubs.push({ key, original: backend.env.get(key), backend: "deno" });
+    backend.env.set(key, value);
+  }
+};
+
+/** Temporarily override a globalThis property. Restored by restoreAllMocks(). */
+export const stubGlobal = (key: string, value: unknown): void => {
+  const g = globalThis as Record<string, unknown>;
+  globalStubs.push({ key, original: g[key] });
+  g[key] = value;
+};
+
 // ── restoreAllMocks() ───────────────────────────────────────────────────────
 
-/** Restore all spied methods to their originals. Also restores real timers. */
+/** Restore all spied methods to their originals. Also restores real timers and stubs. */
 export const restoreAllMocks = (): void => {
   restoreTimers();
   while (spyRegistry.length > 0) {
@@ -421,6 +485,23 @@ export const restoreAllMocks = (): void => {
     } else {
       record.target[record.method] = record.original;
     }
+  }
+  const backend = getEnvBackend();
+  while (envStubs.length > 0) {
+    const stub = envStubs.pop()!;
+    if (!backend) continue;
+    if (stub.backend === "process" && backend.type === "process") {
+      if (stub.original === undefined) delete backend.env[stub.key];
+      else backend.env[stub.key] = stub.original;
+    } else if (stub.backend === "deno" && backend.type === "deno") {
+      if (stub.original === undefined) backend.env.delete(stub.key);
+      else backend.env.set(stub.key, stub.original);
+    }
+  }
+  const g = globalThis as Record<string, unknown>;
+  while (globalStubs.length > 0) {
+    const stub = globalStubs.pop()!;
+    g[stub.key] = stub.original;
   }
 };
 
@@ -453,6 +534,8 @@ export const vi = {
   restoreAllMocks,
   clearAllMocks,
   resetAllMocks,
+  stubEnv,
+  stubGlobal,
   useFakeTimers,
   useRealTimers,
   advanceTimersByTime,
@@ -474,6 +557,8 @@ export const jest = {
   restoreAllMocks,
   clearAllMocks,
   resetAllMocks,
+  stubEnv,
+  stubGlobal,
   useFakeTimers,
   useRealTimers,
   advanceTimersByTime,
