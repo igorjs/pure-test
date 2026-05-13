@@ -77,6 +77,9 @@ jobs:
       - name: Unit tests (Deno ${{ matrix.deno-version }})
         run: deno run --allow-all tests/self-test.mjs
 
+      - name: Adapter smoke test (Deno ${{ matrix.deno-version }})
+        run: deno test --allow-read tests/deno-adapter.test.mjs
+
   # ── Bun (2 jobs) ──────────────────────────────────────────────────────────
   test-bun:
     needs: lint-and-test

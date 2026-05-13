@@ -691,6 +691,43 @@ Already using Jest or Vitest? Step-by-step porting guides with before/after exam
 
 Mock instance methods (`mockReturnValue`, `mockImplementation`, `mock.calls`, etc.) are API-compatible. Most tests only need an import change.
 
+### Using on Deno
+
+Pure Test ships two entry points for Deno consumers:
+
+| Entry | Runtime command | When to use |
+|---|---|---|
+| `@igorjs/pure-test` | `deno run --allow-all tests/foo.test.ts` | Default. Auto-runs in Pure Test's own runner. Get `--grep`, `--bail`, `it.only`, retries, custom reporters. |
+| `@igorjs/pure-test/deno` | `deno test tests/foo.test.ts` | Each `describe`/`it` registers as a `Deno.test()` call so `deno test`, `deno test --filter`, IDE run/debug code lenses, and per-test permission sandboxes work. |
+
+Pick the adapter when you want the native `deno test` workflow or IDE buttons. Pick the default when you want every Pure Test feature (the adapter trades some features for native Deno integration).
+
+```ts
+// Default — pure-test owns scheduling, supports the full feature set.
+import { describe, it, expect } from '@igorjs/pure-test'
+
+// Adapter — each test becomes a Deno.test, runs via `deno test`.
+import { describe, it, expect } from '@igorjs/pure-test/deno'
+
+describe('math', () => {
+  it('adds', () => { expect(1 + 1).toBe(2) })
+})
+```
+
+**Adapter supports**: `describe`, `it` (top-level and nested), `expect` and all matchers, `spyFn` / `spyOn`, `useFakeTimers` and timer control, `beforeAll` / `afterAll` / `beforeEach` / `afterEach` (with parent → child inheritance).
+
+**Adapter does not support** (use the default entry instead): `it.only` / `it.skip` / `it.todo`, `describe.only` / `describe.skip` / `describe.concurrent`, per-test `timeout` / `retry`, `it.each`, `--grep`, `--bail`, custom reporters. Hooks must be inside a `describe()` (top-level hooks throw with a clear message).
+
+For filtering inside the adapter, use Deno's own flags:
+
+```bash
+deno test tests/                          # discover and run all tests
+deno test --filter "auth" tests/          # filter by top-level Deno.test name
+deno test --allow-read tests/foo.test.ts  # single file
+```
+
+> `deno test --filter` matches against top-level `Deno.test` names only. In adapter terms: it filters by `describe` name, not by nested `it` names. This is Deno's native behaviour, shared with `@std/testing/bdd`.
+
 ## Why Pure Test
 
 |  | Pure Test | Jest | Vitest |
