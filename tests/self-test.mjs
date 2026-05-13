@@ -15,19 +15,36 @@ import {
   clearAllMocks,
   describe,
   expect,
+  getReporter,
   getTimerCount,
+  isBailed,
   it,
   jest,
+  json,
+  minimal,
   mock,
   mockDeep,
   resetAllMocks,
   restoreAllMocks,
   runAllTimers,
   runOnlyPendingTimers,
+  setAutoClearMocks,
+  setAutoResetMocks,
+  setAutoRestoreMocks,
+  setBail,
+  setDefaultTimeout,
+  setForceExit,
+  setReporter,
+  setRunInBand,
   setSystemTime,
+  spec,
   spyFn,
   spyOn,
+  stubEnv,
+  stubGlobal,
+  tap,
   useFakeTimers,
+  verbose,
   vi,
 } from "../dist/index.js";
 
@@ -1673,6 +1690,249 @@ describe("useFakeTimers", () => {
     await vi.advanceTimersByTime(50);
     expect(called).toBe(true);
     vi.useRealTimers();
+  });
+});
+
+// ── Reporters ────────────────────────────────────────────────────────────────
+
+describe("reporters", () => {
+  const sample = {
+    results: [
+      { suite: ["math"], name: "adds", status: "pass", duration: 1.2 },
+      { suite: ["math"], name: "divides", status: "fail", error: new Error("boom"), duration: 0.5 },
+      { suite: [], name: "skipped one", status: "skip", duration: 0 },
+      { suite: [], name: "todo one", status: "todo", duration: 0 },
+    ],
+    passed: 1,
+    failed: 1,
+    skipped: 1,
+    todo: 1,
+    duration: 5,
+  };
+
+  it("tap formats a TAP plan with directives", () => {
+    const out = tap.format(sample);
+    expect(out).toContain("1..4");
+    expect(out).toContain("ok 1");
+    expect(out).toContain("not ok 2");
+    expect(out).toContain("# SKIP");
+    expect(out).toContain("# TODO");
+    expect(out).toContain("# tests 4");
+    expect(out).toContain("# pass 1");
+    expect(out).toContain("# fail 1");
+    expect(out).toContain("error: boom");
+  });
+
+  it("json emits a parseable document with results", () => {
+    const out = json.format(sample);
+    const parsed = JSON.parse(out);
+    expect(parsed.tests).toBe(4);
+    expect(parsed.passed).toBe(1);
+    expect(parsed.failed).toBe(1);
+    expect(parsed.results.length).toBe(4);
+    expect(parsed.results[1].error).toBe("boom");
+    expect(parsed.results[1].status).toBe("fail");
+  });
+
+  it("minimal emits dots and surfaces failure detail", () => {
+    const out = minimal.format(sample);
+    expect(out).toContain("FAIL: math > divides");
+    expect(out).toContain("boom");
+    expect(out).toContain("passed");
+  });
+
+  it("spec formats nested suite hierarchy with status labels", () => {
+    const out = spec.format(sample);
+    expect(out).toContain("math");
+    expect(out).toContain("adds");
+    expect(out).toContain("FAIL");
+    expect(out).toContain("divides");
+  });
+
+  it("spec handles empty suite path at top level", () => {
+    const out = spec.format({
+      results: [{ suite: [], name: "top", status: "pass", duration: 0 }],
+      passed: 1,
+      failed: 0,
+      skipped: 0,
+      todo: 0,
+      duration: 1,
+    });
+    expect(out).toContain("top");
+    expect(out).toContain("passed");
+  });
+
+  it("verbose streams via onResult and emits trailing summary", () => {
+    const line = verbose.onResult(sample.results[0]);
+    expect(typeof line).toBe("string");
+    expect(line).toContain("adds");
+    const tail = verbose.format(sample);
+    expect(tail).toContain("passed");
+  });
+
+  it("getReporter returns the named reporter", () => {
+    expect(getReporter("tap")).toBe(tap);
+    expect(getReporter("json")).toBe(json);
+    expect(getReporter("minimal")).toBe(minimal);
+    expect(getReporter("spec")).toBe(spec);
+    expect(getReporter("verbose")).toBe(verbose);
+  });
+
+  it("getReporter falls back to spec on unknown name or no name", () => {
+    expect(getReporter("nope-not-real")).toBe(spec);
+    expect(getReporter()).toBe(spec);
+  });
+
+  it("formats todo-only and skip-only entries correctly", () => {
+    const todoSummary = {
+      results: [
+        { suite: [], name: "future", status: "todo", duration: 0 },
+        { suite: [], name: "later", status: "skip", duration: 0 },
+      ],
+      passed: 0,
+      failed: 0,
+      skipped: 1,
+      todo: 1,
+      duration: 0,
+    };
+    const tapOut = tap.format(todoSummary);
+    expect(tapOut).toContain("# TODO");
+    expect(tapOut).toContain("# SKIP");
+    const minOut = minimal.format(todoSummary);
+    expect(minOut).toContain("T");
+    expect(minOut).toContain("s");
+  });
+});
+
+// ── expect.extend ────────────────────────────────────────────────────────────
+
+describe("expect.extend", () => {
+  beforeAll(() => {
+    expect.extend({
+      toBeWithin(received, min, max) {
+        const pass = typeof received === "number" && received >= min && received <= max;
+        return {
+          pass,
+          message: () => `expected ${received} to be within ${min}..${max}`,
+        };
+      },
+    });
+  });
+
+  it("registers a custom matcher and passes when condition holds", () => {
+    expect(5).toBeWithin(1, 10);
+  });
+
+  it("supports negation via .not", () => {
+    expect(50).not.toBeWithin(1, 10);
+  });
+
+  it("throws AssertionError when matcher fails", () => {
+    expect(() => expect(50).toBeWithin(1, 10)).toThrow("within");
+  });
+
+  it("does not break built-in matchers", () => {
+    expect("hello").toBe("hello");
+    expect({ a: 1 }).toEqual({ a: 1 });
+  });
+
+  it("returns undefined for non-string property access", () => {
+    // The Proxy.get path with a Symbol key falls through to Reflect.get on the base.
+    const sym = Symbol("probe");
+    const e = expect(1);
+    expect(e[sym]).toBeUndefined();
+  });
+});
+
+// ── stubEnv / stubGlobal ─────────────────────────────────────────────────────
+
+describe("stubEnv / stubGlobal", () => {
+  afterEach(() => restoreAllMocks());
+
+  it("stubEnv sets and restores a process.env key", () => {
+    const KEY = "PURE_TEST_STUB_ENV_KEY";
+    const original = process.env[KEY];
+    expect(original).toBeUndefined();
+    stubEnv(KEY, "stubbed");
+    expect(process.env[KEY]).toBe("stubbed");
+    restoreAllMocks();
+    expect(process.env[KEY]).toBeUndefined();
+  });
+
+  it("stubEnv overwrites and restores an existing key", () => {
+    const KEY = "PURE_TEST_STUB_ENV_EXISTING";
+    process.env[KEY] = "original";
+    stubEnv(KEY, "overwritten");
+    expect(process.env[KEY]).toBe("overwritten");
+    restoreAllMocks();
+    expect(process.env[KEY]).toBe("original");
+    delete process.env[KEY];
+  });
+
+  it("stubGlobal sets and restores a globalThis key", () => {
+    const KEY = "__PURE_TEST_STUB_GLOBAL__";
+    expect(globalThis[KEY]).toBeUndefined();
+    stubGlobal(KEY, 42);
+    expect(globalThis[KEY]).toBe(42);
+    restoreAllMocks();
+    expect(globalThis[KEY]).toBeUndefined();
+  });
+
+  it("vi.stubEnv works via namespace", () => {
+    vi.stubEnv("PURE_TEST_VI_ENV", "via-vi");
+    expect(process.env.PURE_TEST_VI_ENV).toBe("via-vi");
+  });
+
+  it("jest.stubGlobal works via namespace", () => {
+    jest.stubGlobal("__PURE_TEST_JEST_GLOBAL__", "via-jest");
+    expect(globalThis.__PURE_TEST_JEST_GLOBAL__).toBe("via-jest");
+  });
+});
+
+// ── runner setters (coverage for new flag setters) ───────────────────────────
+
+describe("runner setters", () => {
+  it("setBail toggles the bail flag", () => {
+    setBail(true);
+    setBail(false);
+  });
+
+  it("setForceExit toggles the force-exit flag", () => {
+    setForceExit(true);
+    setForceExit(false);
+  });
+
+  it("setRunInBand toggles the runInBand flag", () => {
+    setRunInBand(true);
+    setRunInBand(false);
+  });
+
+  it("setAutoClearMocks toggles the auto-clear flag", () => {
+    setAutoClearMocks(true);
+    setAutoClearMocks(false);
+  });
+
+  it("setAutoResetMocks toggles the auto-reset flag", () => {
+    setAutoResetMocks(true);
+    setAutoResetMocks(false);
+  });
+
+  it("setAutoRestoreMocks toggles the auto-restore flag", () => {
+    setAutoRestoreMocks(true);
+    setAutoRestoreMocks(false);
+  });
+
+  it("setDefaultTimeout accepts a numeric default", () => {
+    setDefaultTimeout(60000);
+  });
+
+  it("setReporter accepts both a name and a reporter object", () => {
+    setReporter("tap");
+    setReporter(spec);
+  });
+
+  it("isBailed returns false when no bail has triggered", () => {
+    expect(isBailed()).toBe(false);
   });
 });
 

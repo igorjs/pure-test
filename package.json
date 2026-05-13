@@ -36,6 +36,7 @@
     "test": "node tests/self-test.mjs",
     "test:types": "tsgo -p tsconfig.test.json",
     "test:ci": "node scripts/test-ci.mjs",
+    "coverage": "c8 --reporter=text --reporter=html --include='dist/**/*.js' --exclude='dist/types.js' --exclude='dist/deno.js' node tests/self-test.mjs",
     "release": "node scripts/release.mjs",
     "prepublishOnly": "node scripts/prepublish.mjs"
   },
@@ -67,6 +68,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.4.14",
     "@typescript/native-preview": "7.0.0-dev.20260503.1",
+    "c8": "11.0.0",
     "miniflare": "4.20260504.0",
     "playwright": "1.59.1"
   },
