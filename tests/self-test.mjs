@@ -2008,4 +2008,54 @@ describe("matcher error paths", () => {
   });
 });
 
+// ── Asymmetric matcher edge cases ────────────────────────────────────────────
+
+describe("expect.any with various constructors", () => {
+  it("matches BigInt values", () => {
+    expect({ n: 9007199254740993n }).toEqual({ n: expect.any(BigInt) });
+  });
+
+  it("matches Symbol values", () => {
+    expect({ s: Symbol("x") }).toEqual({ s: expect.any(Symbol) });
+  });
+
+  it("matches Function values", () => {
+    expect({ fn: () => 1 }).toEqual({ fn: expect.any(Function) });
+  });
+
+  it("matches Boolean primitives", () => {
+    expect(true).toEqual(expect.any(Boolean));
+    expect(false).toEqual(expect.any(Boolean));
+  });
+
+  it("fails when type does not match", () => {
+    expect(() => expect("string").toEqual(expect.any(Number))).toThrow();
+  });
+});
+
+// ── matchesObject / deepEqual edge paths ─────────────────────────────────────
+
+describe("deep matchers with null and edge inputs", () => {
+  it("toMatchObject treats null actual vs null expected as equal", () => {
+    expect({ a: null }).toMatchObject({ a: null });
+  });
+
+  it("toEqual fails when one side is null and the other is not", () => {
+    expect(() => expect({ a: null }).toEqual({ a: 1 })).toThrow();
+  });
+
+  it("toEqual fails on type mismatch (string vs number)", () => {
+    expect(() => expect("1").toEqual(1)).toThrow();
+  });
+
+  it("toStrictEqual fails on different array lengths", () => {
+    expect(() => expect([1, 2]).toStrictEqual([1, 2, 3])).toThrow();
+  });
+
+  it("toEqual handles RegExp comparison", () => {
+    expect(/abc/i).toEqual(/abc/i);
+    expect(() => expect(/abc/).toEqual(/abc/i)).toThrow();
+  });
+});
+
 // No run() needed - auto-runs after all describe/it calls complete

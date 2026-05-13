@@ -306,6 +306,77 @@ describe("CLI: NO_COLOR env var", () => {
   });
 });
 
+describe("focus modifiers (covered via spawn)", () => {
+  let dir;
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), "pt-focus-"));
+  });
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("describe.skip skips an entire suite", async () => {
+    const fixture = join(dir, "describe-skip.test.mjs");
+    writeFileSync(
+      fixture,
+      `import { describe, it, expect } from "${PT}";\ndescribe.skip("skipped suite", () => { it("never runs", () => { throw new Error("BAD") }); });\ndescribe("kept", () => { it("runs", () => expect(1).toBe(1)); });\n`,
+    );
+    const r = await run([fixture, "--reporter", "tap"]);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain("ok");
+    expect(r.stdout).toContain("# pass 1");
+  });
+
+  it("describe.only focuses a single suite (others not iterated)", async () => {
+    const fixture = join(dir, "describe-only.test.mjs");
+    writeFileSync(
+      fixture,
+      `import { describe, it, expect } from "${PT}";\ndescribe("not focused", () => { it("skipped-out", () => { throw new Error("BAD") }); });\ndescribe.only("focused", () => { it("runs", () => expect(1).toBe(1)); });\n`,
+    );
+    const r = await run([fixture, "--reporter", "tap"]);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain("focused > runs");
+    expect(r.stdout).not.toContain("skipped-out");
+    expect(r.stdout).toContain("# pass 1");
+  });
+
+  it("it.only focuses a single test", async () => {
+    const fixture = join(dir, "it-only.test.mjs");
+    writeFileSync(
+      fixture,
+      `import { describe, it, expect } from "${PT}";\ndescribe("mixed", () => {\n  it("normal", () => { throw new Error("BAD") });\n  it.only("focused", () => expect(1).toBe(1));\n});\n`,
+    );
+    const r = await run([fixture, "--reporter", "tap"]);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain("# pass 1");
+    expect(r.stdout).toContain("# skip 1");
+  });
+});
+
+describe("runtime fallback: no process, no Deno (covered via spawn)", () => {
+  it("getProcessEnv returns undefined when process is missing", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "pt-fallback-"));
+    const fixture = join(dir, "no-process.mjs");
+    // Delete globalThis.process BEFORE importing the runtime helper
+    writeFileSync(
+      fixture,
+      `delete globalThis.process;\nconst { getProcessEnv } = await import("${resolve("dist/runtime/env-process.js")}");\nconst { exitProcess } = await import("${resolve("dist/runtime/exit-process.js")}");\nif (getProcessEnv() !== undefined) { console.error("expected undefined"); process.exit(1); }\nif (exitProcess(0) !== false) { console.error("expected false"); process.exit(1); }\nconsole.log("OK");\n`,
+    );
+    const r = await new Promise(res => {
+      const child = spawn(process.execPath, [fixture], {
+        stdio: ["ignore", "pipe", "pipe"],
+        env: process.env,
+      });
+      let stdout = "";
+      child.stdout.on("data", b => {
+        stdout += b.toString();
+      });
+      child.on("exit", code => res({ code: code ?? 0, stdout }));
+    });
+    rmSync(dir, { recursive: true, force: true });
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain("OK");
+  });
+});
+
 describe("runner.reset() (covered via spawn)", () => {
   it("clears registered tests and state, allowing re-registration", async () => {
     const dir = mkdtempSync(join(tmpdir(), "pt-reset-"));
