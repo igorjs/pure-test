@@ -570,29 +570,32 @@ const runSuite = async (
 
 // ── Public run function ─────────────────────────────────────────────────────
 
+const summarise = (results: readonly TestResult[], duration: number): RunSummary => ({
+  results: [...results],
+  passed: results.filter(r => r.status === "pass").length,
+  failed: results.filter(r => r.status === "fail").length,
+  skipped: results.filter(r => r.status === "skip").length,
+  todo: results.filter(r => r.status === "todo").length,
+  duration,
+});
+
 /**
- * Run all registered tests and print TAP output.
+ * Run only the tests currently registered in the root suite, returning the
+ * summary without printing or exiting. Used by the CLI to drive per-file
+ * cycles (e.g. for `--bail` so further file imports can be skipped).
  *
- * You usually don't need to call this directly:
- * - In direct mode (`node test.mjs`), it auto-runs after all describe/it calls.
- * - Via CLI (`pure-test tests/`), the CLI calls it after importing all files.
- *
- * Returns the summary for programmatic use.
+ * @param resetBail if true (default), clears the bail flag before running.
+ *                  Pass false to preserve bail across multiple calls.
  */
-export const run = async (): Promise<RunSummary> => {
-  bailed = false;
+export const runRegistered = async (resetBail = true): Promise<RunSummary> => {
+  if (resetBail) bailed = false;
   const start = now();
   const results = await runSuite(rootSuite, [], [], [], false);
+  return summarise(results, now() - start);
+};
 
-  const summary: RunSummary = {
-    results,
-    passed: results.filter(r => r.status === "pass").length,
-    failed: results.filter(r => r.status === "fail").length,
-    skipped: results.filter(r => r.status === "skip").length,
-    todo: results.filter(r => r.status === "todo").length,
-    duration: now() - start,
-  };
-
+/** Print the summary via the active reporter and exit if needed. */
+export const printSummary = (summary: RunSummary): void => {
   const reporter = activeReporter ?? getReporter("spec");
   console.log(reporter.format(summary));
 
@@ -604,7 +607,36 @@ export const run = async (): Promise<RunSummary> => {
     const deno = g["Deno"] as { exit?(code: number): void } | undefined;
     if (deno?.exit) deno.exit(exitCode);
   }
+};
 
+/**
+ * Clear all registered tests and suites from the root, but preserve runner
+ * state (bail flag, hasOnly, defaults). Used by the CLI between per-file runs.
+ */
+export const clearRegistered = (): void => {
+  rootSuite.tests.length = 0;
+  rootSuite.suites.length = 0;
+  rootSuite.beforeAll.length = 0;
+  rootSuite.afterAll.length = 0;
+  rootSuite.beforeEach.length = 0;
+  rootSuite.afterEach.length = 0;
+};
+
+/** Whether the runner has bailed (a test failed with bail-on-failure enabled). */
+export const isBailed = (): boolean => bailed;
+
+/**
+ * Run all registered tests and print TAP output.
+ *
+ * You usually don't need to call this directly:
+ * - In direct mode (`node test.mjs`), it auto-runs after all describe/it calls.
+ * - Via CLI (`pure-test tests/`), the CLI calls it after importing all files.
+ *
+ * Returns the summary for programmatic use.
+ */
+export const run = async (): Promise<RunSummary> => {
+  const summary = await runRegistered();
+  printSummary(summary);
   return summary;
 };
 
