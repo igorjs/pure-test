@@ -12,6 +12,10 @@
 
 import {
   advanceTimersByTime,
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
@@ -81,5 +85,90 @@ describe("fake timers", () => {
     useFakeTimers({ now: 5000 });
     expect(Date.now()).toBe(5000);
     restoreAllMocks();
+  });
+});
+
+// ── Hooks: counts and ordering ──────────────────────────────────────────────
+
+describe("hooks: counts", () => {
+  let beforeAllCount = 0;
+  let afterAllCount = 0;
+  let beforeEachCount = 0;
+  let afterEachCount = 0;
+
+  beforeAll(() => {
+    beforeAllCount++;
+  });
+  afterAll(() => {
+    afterAllCount++;
+    // Verify final tallies after the suite finishes.
+    if (beforeAllCount !== 1) throw new Error(`beforeAll ran ${beforeAllCount}x, expected 1`);
+    if (beforeEachCount !== 3) throw new Error(`beforeEach ran ${beforeEachCount}x, expected 3`);
+    if (afterEachCount !== 3) throw new Error(`afterEach ran ${afterEachCount}x, expected 3`);
+  });
+  beforeEach(() => {
+    beforeEachCount++;
+  });
+  afterEach(() => {
+    afterEachCount++;
+  });
+
+  it("runs first", () => {
+    expect(beforeAllCount).toBe(1);
+    expect(beforeEachCount).toBe(1);
+  });
+
+  it("runs second", () => {
+    expect(beforeAllCount).toBe(1);
+    expect(beforeEachCount).toBe(2);
+    expect(afterEachCount).toBe(1);
+  });
+
+  it("runs third", () => {
+    expect(beforeEachCount).toBe(3);
+    expect(afterEachCount).toBe(2);
+  });
+});
+
+// ── Hooks: parent → child inheritance for beforeEach/afterEach ──────────────
+
+describe("hooks: inheritance", () => {
+  const order = [];
+
+  beforeEach(() => order.push("outer-before"));
+  afterEach(() => order.push("outer-after"));
+
+  describe("nested", () => {
+    beforeEach(() => order.push("inner-before"));
+    afterEach(() => order.push("inner-after"));
+
+    it("sees parent then own beforeEach, then own then parent afterEach", () => {
+      expect(order).toEqual(["outer-before", "inner-before"]);
+    });
+
+    it("preserves chronology across tests in the nested suite", () => {
+      // After test 1: ['outer-before', 'inner-before', 'inner-after', 'outer-after']
+      // Test 2 begins, hooks fire again before this assertion.
+      expect(order).toEqual([
+        "outer-before",
+        "inner-before",
+        "inner-after",
+        "outer-after",
+        "outer-before",
+        "inner-before",
+      ]);
+    });
+  });
+});
+
+// ── Hooks: top-level use throws (adapter constraint) ────────────────────────
+
+describe("hooks: top-level call rejected", () => {
+  it("beforeAll outside describe throws clearly", () => {
+    // Any direct call to beforeAll() at module scope (no enclosing describe)
+    // must throw — verified by calling it during a test, when currentFrame is
+    // null (the test body executes after the describe closure has popped).
+    const noop = () => undefined;
+    expect(() => beforeAll(noop)).toThrow(/inside a describe/);
   });
 });

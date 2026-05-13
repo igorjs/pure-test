@@ -17,9 +17,9 @@
  * import { describe, it, expect } from '@igorjs/pure-test/deno'
  * ```
  *
- * Step 1 spike: only `describe`, `it`, and assertion/mock/timer APIs.
- * Hooks (`beforeAll`/`afterEach`), modifiers (`.only`/`.skip`/`.todo`),
- * and per-test options (timeout/retry/permissions) ship in later steps.
+ * Step 2: hooks (`beforeAll`/`afterAll`/`beforeEach`/`afterEach`) supported,
+ * with parent → child inheritance for `beforeEach`/`afterEach`.
+ * Modifiers (`.only`/`.skip`/`.todo`) and per-test options ship in later steps.
  */
 
 // ── Re-exports (unchanged across runtimes) ──────────────────────────────────
@@ -72,33 +72,77 @@ const getDeno = (): DenoGlobal => {
   return deno;
 };
 
-// ── Step tree (buffered while a describe is open) ───────────────────────────
+// ── Suite frame (buffered while a describe is open) ─────────────────────────
+
+type HookFn = () => void | Promise<void>;
+
+interface SuiteFrame {
+  readonly children: Step[];
+  readonly beforeAll: HookFn[];
+  readonly afterAll: HookFn[];
+  readonly beforeEach: HookFn[];
+  readonly afterEach: HookFn[];
+}
 
 interface TestStep {
   readonly kind: "test";
   readonly name: string;
-  readonly fn: () => void | Promise<void>;
+  readonly fn: HookFn;
 }
 
 interface SuiteStep {
   readonly kind: "suite";
   readonly name: string;
-  readonly children: Step[];
+  readonly frame: SuiteFrame;
 }
 
 type Step = TestStep | SuiteStep;
 
-/** Stack of "currently open describe blocks". null = at module top level. */
-let currentChildren: Step[] | null = null;
+const newFrame = (): SuiteFrame => ({
+  children: [],
+  beforeAll: [],
+  afterAll: [],
+  beforeEach: [],
+  afterEach: [],
+});
 
-const runSteps = async (steps: readonly Step[], t: DenoTestContext): Promise<void> => {
-  for (const step of steps) {
-    if (step.kind === "test") {
-      await t.step(step.name, step.fn);
-    } else {
-      await t.step(step.name, async (innerT: DenoTestContext) => {
-        await runSteps(step.children, innerT);
-      });
+/** Currently open describe block. null = at module top level. */
+let currentFrame: SuiteFrame | null = null;
+
+// ── Execution ───────────────────────────────────────────────────────────────
+
+const runFrame = async (
+  frame: SuiteFrame,
+  t: DenoTestContext,
+  parentBeforeEach: readonly HookFn[],
+  parentAfterEach: readonly HookFn[],
+): Promise<void> => {
+  const allBeforeEach: readonly HookFn[] = [...parentBeforeEach, ...frame.beforeEach];
+  const allAfterEach: readonly HookFn[] = [...frame.afterEach, ...parentAfterEach];
+
+  for (const hook of frame.beforeAll) {
+    await hook();
+  }
+  try {
+    for (const step of frame.children) {
+      if (step.kind === "test") {
+        await t.step(step.name, async () => {
+          for (const h of allBeforeEach) await h();
+          try {
+            await step.fn();
+          } finally {
+            for (const h of allAfterEach) await h();
+          }
+        });
+      } else {
+        await t.step(step.name, async (innerT: DenoTestContext) => {
+          await runFrame(step.frame, innerT, allBeforeEach, allAfterEach);
+        });
+      }
+    }
+  } finally {
+    for (const hook of frame.afterAll) {
+      await hook();
     }
   }
 };
@@ -110,23 +154,23 @@ const runSteps = async (steps: readonly Step[], t: DenoTestContext): Promise<voi
  * scope, or to a nested `t.step()` if inside another describe.
  */
 export const describe = (name: string, fn: () => void): void => {
-  const parentChildren = currentChildren;
-  const children: Step[] = [];
-  currentChildren = children;
+  const parentFrame = currentFrame;
+  const frame = newFrame();
+  currentFrame = frame;
   try {
     fn();
   } finally {
-    currentChildren = parentChildren;
+    currentFrame = parentFrame;
   }
 
-  if (parentChildren !== null) {
-    parentChildren.push({ kind: "suite", name, children });
+  if (parentFrame !== null) {
+    parentFrame.children.push({ kind: "suite", name, frame });
     return;
   }
 
   const deno = getDeno();
   deno.test(name, async (t: DenoTestContext) => {
-    await runSteps(children, t);
+    await runFrame(frame, t, [], []);
   });
 };
 
@@ -134,9 +178,9 @@ export const describe = (name: string, fn: () => void): void => {
  * Define a test case. Becomes a `t.step()` when inside a describe, or a
  * standalone `Deno.test()` at module scope.
  */
-export const it = (name: string, fn: () => void | Promise<void>): void => {
-  if (currentChildren !== null) {
-    currentChildren.push({ kind: "test", name, fn });
+export const it = (name: string, fn: HookFn): void => {
+  if (currentFrame !== null) {
+    currentFrame.children.push({ kind: "test", name, fn });
     return;
   }
   const deno = getDeno();
@@ -145,3 +189,35 @@ export const it = (name: string, fn: () => void | Promise<void>): void => {
 
 /** Alias for `it`. */
 export const test = it;
+
+// ── Hooks ───────────────────────────────────────────────────────────────────
+
+const requireFrame = (hook: string): SuiteFrame => {
+  if (currentFrame === null) {
+    throw new Error(
+      `${hook}() must be called inside a describe() block when using '@igorjs/pure-test/deno'. ` +
+        "Top-level hooks are not supported in adapter mode — wrap your tests in describe().",
+    );
+  }
+  return currentFrame;
+};
+
+/** Run once before all tests in the enclosing describe. */
+export const beforeAll = (fn: HookFn): void => {
+  requireFrame("beforeAll").beforeAll.push(fn);
+};
+
+/** Run once after all tests in the enclosing describe. */
+export const afterAll = (fn: HookFn): void => {
+  requireFrame("afterAll").afterAll.push(fn);
+};
+
+/** Run before each test in the enclosing describe (and inherited by children). */
+export const beforeEach = (fn: HookFn): void => {
+  requireFrame("beforeEach").beforeEach.push(fn);
+};
+
+/** Run after each test in the enclosing describe (and inherited by children). */
+export const afterEach = (fn: HookFn): void => {
+  requireFrame("afterEach").afterEach.push(fn);
+};
