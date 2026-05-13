@@ -267,6 +267,84 @@ describe("CLI: conflict detection", () => {
   });
 });
 
+describe("CLI: NO_COLOR env var", () => {
+  let dir;
+  // ANSI ESC byte (decimal 27); built without literal control chars to satisfy lint
+  const ESC = String.fromCharCode(27);
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), "pt-cli-nc-"));
+    writeFixture(dir, "ok.test.mjs", passingTest("colorless"));
+  });
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("strips ANSI escapes when NO_COLOR is set", async () => {
+    const r = await run([dir, "--reporter", "spec"], { env: { NO_COLOR: "1" } });
+    expect(r.code).toBe(0);
+    // ANSI escape sequences start with \x1b[ — should not appear at all
+    expect(r.stdout).not.toContain(ESC);
+    expect(r.stdout).toContain("colorless");
+    expect(r.stdout).toContain("passed");
+  });
+
+  it("includes ANSI escapes when NO_COLOR is unset", async () => {
+    // Explicitly unset NO_COLOR (parent's env may have it set)
+    const env = { ...process.env };
+    delete env.NO_COLOR;
+    const r = await new Promise(res => {
+      const child = spawn(process.execPath, [BIN, dir, "--reporter", "spec"], {
+        stdio: ["ignore", "pipe", "pipe"],
+        env,
+      });
+      let stdout = "";
+      child.stdout.on("data", b => {
+        stdout += b.toString();
+      });
+      child.on("exit", code => res({ code: code ?? 0, stdout }));
+    });
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain(ESC);
+  });
+});
+
+describe("runner.reset() (covered via spawn)", () => {
+  it("clears registered tests and state, allowing re-registration", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "pt-reset-"));
+    const fixture = join(dir, "use-reset.mjs");
+    writeFileSync(
+      fixture,
+      `import { describe, it, expect, reset, run, setCLIMode, setBail, isBailed } from "${PT}";
+setCLIMode();
+setBail(true);
+describe("BEFORE", () => { it("never runs", () => { throw new Error("BAD") }); });
+reset();
+if (isBailed()) { throw new Error("bail flag should be reset"); }
+describe("AFTER", () => { it("runs", () => expect(1).toBe(1)); });
+await run();
+`,
+    );
+    const r = await new Promise(res => {
+      const child = spawn(process.execPath, [fixture], {
+        stdio: ["ignore", "pipe", "pipe"],
+        env: process.env,
+      });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", b => {
+        stdout += b.toString();
+      });
+      child.stderr.on("data", b => {
+        stderr += b.toString();
+      });
+      child.on("exit", code => res({ code: code ?? 0, stdout, stderr }));
+    });
+    rmSync(dir, { recursive: true, force: true });
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain("AFTER");
+    expect(r.stdout).not.toContain("BEFORE");
+    expect(r.stdout).not.toContain("never runs");
+  });
+});
+
 describe("CLI: --grep / --testNamePattern", () => {
   let dir;
   beforeAll(() => {
