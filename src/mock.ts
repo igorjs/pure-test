@@ -470,22 +470,7 @@ export const stubGlobal = (key: string, value: unknown): void => {
 
 // ── restoreAllMocks() ───────────────────────────────────────────────────────
 
-/** Restore all spied methods to their originals. Also restores real timers and stubs. */
-export const restoreAllMocks = (): void => {
-  restoreTimers();
-  while (spyRegistry.length > 0) {
-    const record = spyRegistry.pop()!;
-    // Accessor spies store a PropertyDescriptor as original
-    if (
-      record.original !== null &&
-      typeof record.original === "object" &&
-      "configurable" in record.original
-    ) {
-      Object.defineProperty(record.target, record.method, record.original as PropertyDescriptor);
-    } else {
-      record.target[record.method] = record.original;
-    }
-  }
+const restoreStubs = (): void => {
   const backend = getEnvBackend();
   while (envStubs.length > 0) {
     const stub = envStubs.pop()!;
@@ -503,6 +488,25 @@ export const restoreAllMocks = (): void => {
     const stub = globalStubs.pop()!;
     g[stub.key] = stub.original;
   }
+};
+
+/** Restore all spied methods to their originals. Also restores real timers and stubs. */
+export const restoreAllMocks = (): void => {
+  restoreTimers();
+  while (spyRegistry.length > 0) {
+    const record = spyRegistry.pop()!;
+    // Accessor spies store a PropertyDescriptor as original
+    if (
+      record.original !== null &&
+      typeof record.original === "object" &&
+      "configurable" in record.original
+    ) {
+      Object.defineProperty(record.target, record.method, record.original as PropertyDescriptor);
+    } else {
+      record.target[record.method] = record.original;
+    }
+  }
+  restoreStubs();
 };
 
 // ── Bulk operations ─────────────────────────────────────────────────────────

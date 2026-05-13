@@ -429,6 +429,30 @@ const raceTimeout = (fn: () => void | Promise<void>, ms: number, name: string): 
 
 // ── Execution ───────────────────────────────────────────────────────────────
 
+const runAttempt = async (
+  t: Test,
+  beforeEachHooks: ReadonlyArray<() => void | Promise<void>>,
+  afterEachHooks: ReadonlyArray<() => void | Promise<void>>,
+): Promise<void> => {
+  resetAssertionState();
+  if (autoClearMocks) clearAllMocks();
+  if (autoResetMocks) resetAllMocks();
+  if (autoRestoreMocks) restoreAllMocks();
+  for (const hook of beforeEachHooks) {
+    await hook();
+  }
+  const timeout = t.timeout ?? defaultTimeout;
+  if (timeout !== undefined) {
+    await raceTimeout(t.fn, timeout, t.name);
+  } else {
+    await t.fn();
+  }
+  for (const hook of afterEachHooks) {
+    await hook();
+  }
+  checkAssertionState();
+};
+
 const runTest = async (
   t: Test,
   suitePath: readonly string[],
@@ -449,25 +473,7 @@ const runTest = async (
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const start = now();
     try {
-      resetAssertionState();
-      if (autoClearMocks) clearAllMocks();
-      if (autoResetMocks) resetAllMocks();
-      if (autoRestoreMocks) restoreAllMocks();
-      for (const hook of beforeEachHooks) {
-        await hook();
-      }
-
-      const timeout = t.timeout ?? defaultTimeout;
-      if (timeout !== undefined) {
-        await raceTimeout(t.fn, timeout, t.name);
-      } else {
-        await t.fn();
-      }
-
-      for (const hook of afterEachHooks) {
-        await hook();
-      }
-      checkAssertionState();
+      await runAttempt(t, beforeEachHooks, afterEachHooks);
       return { suite: suitePath, name: t.name, status: "pass", duration: now() - start };
     } catch (error) {
       lastError = error;
