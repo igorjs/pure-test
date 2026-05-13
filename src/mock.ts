@@ -470,18 +470,21 @@ export const stubGlobal = (key: string, value: unknown): void => {
 
 // ── restoreAllMocks() ───────────────────────────────────────────────────────
 
+const restoreEnvStub = (stub: EnvStub, backend: ReturnType<typeof getEnvBackend>): void => {
+  if (!backend) return;
+  if (stub.backend === "process" && backend.type === "process") {
+    if (stub.original === undefined) delete backend.env[stub.key];
+    else backend.env[stub.key] = stub.original;
+  } else if (stub.backend === "deno" && backend.type === "deno") {
+    if (stub.original === undefined) backend.env.delete(stub.key);
+    else backend.env.set(stub.key, stub.original);
+  }
+};
+
 const restoreStubs = (): void => {
   const backend = getEnvBackend();
   while (envStubs.length > 0) {
-    const stub = envStubs.pop()!;
-    if (!backend) continue;
-    if (stub.backend === "process" && backend.type === "process") {
-      if (stub.original === undefined) delete backend.env[stub.key];
-      else backend.env[stub.key] = stub.original;
-    } else if (stub.backend === "deno" && backend.type === "deno") {
-      if (stub.original === undefined) backend.env.delete(stub.key);
-      else backend.env.set(stub.key, stub.original);
-    }
+    restoreEnvStub(envStubs.pop()!, backend);
   }
   const g = globalThis as Record<string, unknown>;
   while (globalStubs.length > 0) {
