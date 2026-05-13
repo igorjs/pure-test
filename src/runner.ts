@@ -9,6 +9,8 @@
 import { checkAssertionState, resetAssertionState } from "./expect.js";
 import { clearAllMocks, resetAllMocks, restoreAllMocks } from "./mock.js";
 import { getReporter, type Reporter } from "./reporters.js";
+import { exitDeno } from "./runtime/exit-deno.js";
+import { exitProcess } from "./runtime/exit-process.js";
 import { getRealClearTimeout, getRealSetTimeout, getRealTime } from "./timers.js";
 import type { RunSummary, Suite, Test, TestOptions, TestResult } from "./types.js";
 
@@ -611,11 +613,8 @@ export const printSummary = (summary: RunSummary): void => {
 
   const exitCode = summary.failed > 0 ? 1 : 0;
   if (exitCode !== 0 || forceExit) {
-    const g = globalThis as Record<string, unknown>;
-    const proc = g["process"] as { exit?(code: number): void } | undefined;
-    if (proc?.exit) proc.exit(exitCode);
-    const deno = g["Deno"] as { exit?(code: number): void } | undefined;
-    if (deno?.exit) deno.exit(exitCode);
+    if (exitProcess(exitCode)) return;
+    exitDeno(exitCode);
   }
 };
 

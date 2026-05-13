@@ -1,0 +1,10 @@
+{
+  "$comment": "Coverage config when measuring under Deno. Excludes Node/Bun-only runtime files. Use with 'deno coverage' once converted to LCOV via 'deno coverage --lcov'.",
+  "include": ["dist/**/*.js"],
+  "exclude": [
+    "dist/types.js",
+    "dist/runtime/env-process.js",
+    "dist/runtime/exit-process.js"
+  ],
+  "reporter": ["text", "html"]
+}

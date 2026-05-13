@@ -12,6 +12,18 @@
  */
 
 import {
+  type DenoEnvBackend,
+  getDenoEnv,
+  restoreDenoEnvKey,
+  setDenoEnvKey,
+} from "./runtime/env-deno.js";
+import {
+  getProcessEnv,
+  type ProcessEnvBackend,
+  restoreProcessEnvKey,
+  setProcessEnvKey,
+} from "./runtime/env-process.js";
+import {
   advanceTimersByTime,
   getRealSystemTime,
   getTimerCount,
@@ -112,10 +124,12 @@ let globalCallOrder = 0;
 
 // ── Stub registry ────────────────────────────────────────────────────────────
 
+type EnvBackend = ProcessEnvBackend | DenoEnvBackend;
+
 interface EnvStub {
   readonly key: string;
   readonly original: string | undefined;
-  readonly backend: "process" | "deno";
+  readonly backend: EnvBackend;
 }
 interface GlobalStub {
   readonly key: string;
@@ -125,32 +139,7 @@ interface GlobalStub {
 const envStubs: EnvStub[] = [];
 const globalStubs: GlobalStub[] = [];
 
-const getEnvBackend = ():
-  | { type: "process"; env: Record<string, string | undefined> }
-  | {
-      type: "deno";
-      env: {
-        get(k: string): string | undefined;
-        set(k: string, v: string): void;
-        delete(k: string): void;
-      };
-    }
-  | undefined => {
-  const g = globalThis as Record<string, unknown>;
-  const proc = g["process"] as { env?: Record<string, string | undefined> } | undefined;
-  if (proc?.env) return { type: "process", env: proc.env };
-  const deno = g["Deno"] as
-    | {
-        env?: {
-          get(k: string): string | undefined;
-          set(k: string, v: string): void;
-          delete(k: string): void;
-        };
-      }
-    | undefined;
-  if (deno?.env) return { type: "deno", env: deno.env };
-  return undefined;
-};
+const getEnvBackend = (): EnvBackend | undefined => getProcessEnv() ?? getDenoEnv();
 
 // ── fn() ────────────────────────────────────────────────────────────────────
 
@@ -453,11 +442,11 @@ export const stubEnv = (key: string, value: string): void => {
   const backend = getEnvBackend();
   if (!backend) return;
   if (backend.type === "process") {
-    envStubs.push({ key, original: backend.env[key], backend: "process" });
-    backend.env[key] = value;
+    envStubs.push({ key, original: backend.env[key], backend });
+    setProcessEnvKey(backend.env, key, value);
   } else {
-    envStubs.push({ key, original: backend.env.get(key), backend: "deno" });
-    backend.env.set(key, value);
+    envStubs.push({ key, original: backend.env.get(key), backend });
+    setDenoEnvKey(backend.env, key, value);
   }
 };
 
@@ -470,21 +459,17 @@ export const stubGlobal = (key: string, value: unknown): void => {
 
 // ── restoreAllMocks() ───────────────────────────────────────────────────────
 
-const restoreEnvStub = (stub: EnvStub, backend: ReturnType<typeof getEnvBackend>): void => {
-  if (!backend) return;
-  if (stub.backend === "process" && backend.type === "process") {
-    if (stub.original === undefined) delete backend.env[stub.key];
-    else backend.env[stub.key] = stub.original;
-  } else if (stub.backend === "deno" && backend.type === "deno") {
-    if (stub.original === undefined) backend.env.delete(stub.key);
-    else backend.env.set(stub.key, stub.original);
+const restoreEnvStub = (stub: EnvStub): void => {
+  if (stub.backend.type === "process") {
+    restoreProcessEnvKey(stub.backend.env, stub.key, stub.original);
+  } else {
+    restoreDenoEnvKey(stub.backend.env, stub.key, stub.original);
   }
 };
 
 const restoreStubs = (): void => {
-  const backend = getEnvBackend();
   while (envStubs.length > 0) {
-    restoreEnvStub(envStubs.pop()!, backend);
+    restoreEnvStub(envStubs.pop()!);
   }
   const g = globalThis as Record<string, unknown>;
   while (globalStubs.length > 0) {

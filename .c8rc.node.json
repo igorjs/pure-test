@@ -1,0 +1,11 @@
+{
+  "$comment": "Coverage config when measuring under Node or Bun. Excludes Deno-only runtime files (those branches are exercised under deno.Dockerfile).",
+  "include": ["dist/**/*.js"],
+  "exclude": [
+    "dist/types.js",
+    "dist/deno.js",
+    "dist/runtime/env-deno.js",
+    "dist/runtime/exit-deno.js"
+  ],
+  "reporter": ["text", "html"]
+}

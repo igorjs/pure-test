@@ -36,7 +36,7 @@
     "test": "node tests/self-test.mjs",
     "test:types": "tsgo -p tsconfig.test.json",
     "test:ci": "node scripts/test-ci.mjs",
-    "coverage": "c8 --reporter=text --reporter=html --include='dist/**/*.js' --exclude='dist/types.js' --exclude='dist/deno.js' node tests/self-test.mjs",
+    "coverage": "c8 --config .c8rc.node.json node tests/self-test.mjs",
     "release": "node scripts/release.mjs",
     "prepublishOnly": "node scripts/prepublish.mjs"
   },
