@@ -16,7 +16,7 @@
     }
   },
   "bin": {
-    "pure-test": "./bin/pure-test.mjs"
+    "pure-test": "bin/pure-test.mjs"
   },
   "files": [
     "dist",
