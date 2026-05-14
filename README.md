@@ -871,12 +871,16 @@ These features work the same way across all three frameworks. If you're using th
 | `expect().toBeNull/Undefined/Defined()` | Yes | Yes | Yes |
 | `expect().toBeInstanceOf()` | Yes | Yes | Yes |
 | `expect().toBeNaN()` | Yes | Yes | Yes |
-| `expect().toBeTypeOf()` | No | No | Yes |
-| `expect().toSatisfy()` | No | No | Yes |
+| `expect().toBeTypeOf()` | Yes | No | Yes |
+| `expect().toSatisfy()` | Yes | No | Yes |
+| `expect().toBeEmail()` | Yes | No | No |
+| `expect().toBeUUID(version?)` (RFC 9562) | Yes | No | No |
 | `expect().toBeGreaterThan()` and friends | Yes | Yes | Yes |
 | `expect().toBeCloseTo()` | Yes | Yes | Yes |
 | `expect().toContain()` / `toContainEqual()` | Yes | Yes | Yes |
 | `expect().toMatch()` | Yes | Yes | Yes |
+| `expect().toMatchArray()` | Yes | No | No |
+| `expect().toMatchUnsortedArray()` | Yes | No | No |
 | `expect().toHaveLength()` | Yes | Yes | Yes |
 | `expect().toMatchObject()` / `toHaveProperty()` | Yes | Yes | Yes |
 | `expect().toStrictEqual()` | Yes | Yes | Yes |
@@ -890,11 +894,13 @@ These features work the same way across all three frameworks. If you're using th
 | `expect.any()` / asymmetric matchers | Yes | Yes | Yes |
 | `expect.not.*` asymmetric matchers | Yes | Yes | Yes |
 | `expect.closeTo()` | Yes | Yes | Yes |
+| `expect.email()` / `expect.uuid(version?)` | Yes | No | No |
 | `expect.assertions()` / `expect.hasAssertions()` | Yes | Yes | Yes |
+| `expect.extend()` (custom matchers) | Yes | Yes | Yes |
 | `.not` / `.resolves` / `.rejects` modifiers | Yes | Yes | Yes |
 | `spyOn(obj, 'prop', 'get'\|'set')` | Yes | Yes | Yes |
 | Test timeout `it('name', fn, 5000)` | Yes | Yes | Yes |
-| `--grep` / `-t` test name filtering | Yes (Mocha) | Yes | Yes |
+| Test retry `it('name', fn, { retry: 3 })` | Yes | Yes (via jest.retryTimes) | Yes |
 | `spyFn()` / `fn()` / `vi.fn()` | Yes | Yes | Yes |
 | `spyOn()` | Yes | Yes | Yes |
 | `mockReturnValue` / `mockReturnValueOnce` | Yes | Yes | Yes |
@@ -905,9 +911,24 @@ These features work the same way across all three frameworks. If you're using th
 | `mockClear` / `mockReset` / `mockRestore` | Yes | Yes | Yes |
 | `mock.calls` / `mock.results` / `mock.lastCall` | Yes | Yes | Yes |
 | `mockDeep()` | Yes | Via jest-mock-extended | No |
-| Multiple reporters (TAP, JSON, spec, minimal) | Yes | Via packages | Via packages |
-| Custom reporters | Yes | Via packages | Via packages |
+| `stubEnv()` / `stubGlobal()` (auto-restored) | Yes | No | Yes |
+| `--clearMocks` / `--resetMocks` / `--restoreMocks` (CLI auto-reset) | Yes | Yes | Yes |
+| 5 built-in reporters (spec, verbose, tap, json, minimal) | Yes | Via packages | Via packages |
+| Custom reporters via `Reporter.format()` and streaming `onResult()` | Yes | Via packages | Via packages |
 | Async test support | Yes | Yes | Yes |
+| `--grep` / `-t` / `--testNamePattern` (test name filter) | Yes | Yes | Yes |
+| `--testPathPattern <regex>` (test file filter) | Yes | Yes | Yes |
+| `--testTimeout <ms>` (default test timeout) | Yes | Yes | Yes |
+| `--shard <i>/<n>` (CI parallelism) | Yes | Yes | Yes |
+| `--bail` (stop on first failure) | Yes | Yes | Yes |
+| `--watch` (re-run on file change, cross-runtime) | Yes | Yes | Yes |
+| `--runInBand` (force serial execution) | Yes | Yes | Yes |
+| `--passWithNoTests` (CI-friendly empty-suite exit) | Yes | Yes | Yes |
+| `--listTests` (print discovered files) | Yes | Yes | Yes |
+| `--force-exit` (kill hanging open handles) | Yes | Yes | Yes |
+| `--verbose` / `-v` (streaming per-test output) | Yes | Yes | Yes |
+| Parallel test file imports (default) | Yes | No (workers) | Partial |
+| `NO_COLOR` env support | Yes | Yes | Yes |
 
 ### What Pure Test will never support
 
@@ -916,14 +937,11 @@ These features are intentionally excluded. Each one conflicts with our philosoph
 | Feature | Jest | Vitest | Why we skip it |
 |---------|------|--------|---------------|
 | Module mocking (`jest.mock` / `vi.mock`) | Yes | Yes | **Requires transform hooks** that intercept `import` statements at compile time. This is runtime-specific magic: Jest uses babel, Vitest uses Vite. There's no cross-runtime way to do it. Use dependency injection instead: pass dependencies as parameters, mock at the call site. |
-| Global stubbing (`vi.stubGlobal` / `vi.stubEnv`) | No | Yes | **Mutating globals is fragile** and leaks between tests. Pass globals as function parameters instead. |
 | Hoisted mocks (`vi.hoisted`) | No | Yes | **Only works with Vite's transform pipeline.** The concept doesn't exist without a bundler. |
 | Snapshot testing | Yes | Yes | **Requires file I/O** to read/write `.snap` files, which isn't available in Workers or browsers. Snapshots are also brittle: they pass when they shouldn't (accepting wrong output) and fail when they shouldn't (formatting changes). Write explicit assertions that document what you expect. |
-| Coverage (`--coverage`) | Yes | Yes | **Requires V8 or Istanbul instrumentation** which is deeply runtime-specific. Use [`c8`](https://github.com/bcoe/c8) for Node, `deno coverage` for Deno, or `bun test --coverage` for Bun. Separating coverage from the test runner is better architecture. |
-| Watch mode | Yes | Yes | **Requires file system watchers** (FSEvents, inotify) which are runtime-specific. Use [`watchexec`](https://github.com/watchexec/watchexec) or `nodemon` externally: `watchexec -e mjs -- pure-test tests/`. Unix philosophy: do one thing well. |
+| Built-in coverage (`--coverage`) | Yes | Yes | **Requires V8 or Istanbul instrumentation** which is deeply runtime-specific. Use [`c8`](https://github.com/bcoe/c8) for Node, `deno coverage` for Deno, or `bun test --coverage` for Bun. Separating coverage from the test runner is better architecture. The repo ships per-runtime c8 configs (`.c8rc.node.json`, `.c8rc.deno.json`) and a `coverage:all` script as a reference example. |
 | Browser environments (jsdom, happy-dom) | Yes | Yes | **Simulated DOM is a Node-only concept.** Pure Test runs in real browsers via Playwright. Test browser code in a real browser, not a simulation. |
 | Worker/thread isolation | Yes | Yes | **Costs ~50ms per file** in process creation overhead. For 100 test files, that's 5 seconds before any test runs. Use `beforeEach`/`afterEach` for test isolation. If your tests need process isolation, your tests have a design problem. |
-| `expect.extend()` (custom matchers) | Yes | Yes | **Adds API surface and complexity.** Write helper functions that call `expect()` internally. They compose better and are easier to debug. |
 | Config files | Yes (`jest.config`) | Yes (`vitest.config`) | **Config parsing adds startup overhead** and a new thing to learn. CLI args cover everything. If you need project-specific settings, use npm scripts. |
 | Benchmark mode | No | Yes (`bench()`) | **Benchmarking is a different tool.** Use [mitata](https://github.com/evanwashere/mitata) or [tinybench](https://github.com/tinylibs/tinybench). Mixing tests and benchmarks in one runner conflates two concerns. |
 
