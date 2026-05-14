@@ -4,9 +4,10 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version bump (patch, minor, major, or x.y.z)"
-        required: true
+        description: "patch | minor | major | x.y.z. Leave blank to release the version currently in package.json (it must not already be tagged)."
+        required: false
         type: string
+        default: ""
 
 permissions:
   contents: write
