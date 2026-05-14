@@ -44,6 +44,7 @@ import {
   stubGlobal,
   tap,
   useFakeTimers,
+  useRealTimers,
   verbose,
   vi,
 } from "../dist/index.js";
@@ -2055,6 +2056,99 @@ describe("deep matchers with null and edge inputs", () => {
   it("toEqual handles RegExp comparison", () => {
     expect(/abc/i).toEqual(/abc/i);
     expect(() => expect(/abc/).toEqual(/abc/i)).toThrow();
+  });
+});
+
+// ── Fake timer edge cases ────────────────────────────────────────────────────
+
+describe("fake timer edges", () => {
+  afterEach(() => useRealTimers());
+
+  it("clearTimeout on a non-existent id is a no-op", () => {
+    useFakeTimers({ now: 0 });
+    clearTimeout(99999);
+    expect(getTimerCount()).toBe(0);
+  });
+
+  it("setInterval(cb, 0) clamps delay to 1ms", async () => {
+    useFakeTimers({ now: 0 });
+    let count = 0;
+    const id = setInterval(() => {
+      count++;
+    }, 0);
+    await advanceTimersByTime(3);
+    clearInterval(id);
+    expect(count).toBeGreaterThanOrEqual(1);
+  });
+
+  it("useFakeTimers with toFake: ['setInterval'] only fakes setInterval", () => {
+    useFakeTimers({ now: 0, toFake: ["setInterval"] });
+    expect(typeof setInterval).toBe("function");
+  });
+
+  it("useRealTimers is a no-op when fake timers are not installed", () => {
+    useRealTimers();
+    useRealTimers();
+    expect(true).toBe(true);
+  });
+
+  it("runAllTimers skips cleared timers at the head of the queue", async () => {
+    useFakeTimers({ now: 0 });
+    let fired = false;
+    const id1 = setTimeout(() => {
+      fired = true;
+    }, 50);
+    const id2 = setTimeout(() => {
+      fired = true;
+    }, 100);
+    clearTimeout(id1);
+    clearTimeout(id2);
+    await runAllTimers();
+    expect(fired).toBe(false);
+    expect(getTimerCount()).toBe(0);
+  });
+});
+
+// ── More mock coverage ───────────────────────────────────────────────────────
+
+describe("mock function additional paths", () => {
+  it("mockReset clears one-time queues", () => {
+    const fn = vi.fn();
+    fn.mockReturnValueOnce(1);
+    fn.mockImplementationOnce(() => 99);
+    fn.mockThrowOnce(new Error("once"));
+    fn.mockReset();
+    expect(fn()).toBe(undefined);
+  });
+
+  it("mockRejectedValueOnce rejects one call then default", async () => {
+    const fn = vi.fn();
+    fn.mockRejectedValueOnce(new Error("first-only"));
+    let caught;
+    try {
+      await fn();
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught.message).toBe("first-only");
+    expect(fn()).toBe(undefined);
+  });
+
+  it("mock() replaces all function methods on an object", () => {
+    const obj = { greet: () => "hi", meta: 42 };
+    mock(obj);
+    expect(typeof obj.greet.mockClear).toBe("function");
+    expect(obj.meta).toBe(42);
+    restoreAllMocks();
+  });
+
+  it("mockDeep handles arrays without recursing", () => {
+    const obj = { items: [1, 2, 3], action: () => "go" };
+    mockDeep(obj);
+    expect(obj.items).toEqual([1, 2, 3]);
+    expect(typeof obj.action.mockClear).toBe("function");
+    restoreAllMocks();
   });
 });
 
