@@ -14,6 +14,27 @@ import { createServer } from "node:http";
 import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+// ── Preflight: verify the playwright devDependency is installed ─────────────
+// Fail-fast with an actionable message rather than the cryptic ESM resolver
+// error if someone runs this without `pnpm install` (regression: CI run
+// 25391570458 on 2026-05-05 hit this path).
+
+let chromium;
+try {
+  ({ chromium } = await import("playwright"));
+} catch (e) {
+  const missing =
+    e.code === "ERR_MODULE_NOT_FOUND" || /Cannot find package 'playwright'/.test(e.message);
+  if (missing) {
+    console.error("browser-test requires the 'playwright' devDependency.");
+    console.error("Install with:  pnpm install");
+    console.error("Then install Chromium with:  npx playwright install --with-deps chromium");
+  } else {
+    console.error(`browser-test: failed to import playwright: ${e.message}`);
+  }
+  process.exit(1);
+}
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, "..");
 
@@ -108,7 +129,6 @@ await writeFile(htmlPath, testHtml);
 
 let exitCode = 0;
 try {
-  const { chromium } = await import("playwright");
   const browser = await chromium.launch();
   const page = await browser.newPage();
 
