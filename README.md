@@ -59,25 +59,64 @@ bun tests/math.test.mjs
 pure-test [paths...] [options]
 
 Options:
-  --reporter, -r <name>      Output format: spec (default), tap, json, minimal
-  --grep, -g <pattern>       Run only tests matching pattern (regex)
+  --reporter, -r <name>      Output format: spec (default), tap, json, minimal, verbose
+  --grep, -g <pattern>       Run only tests matching name pattern (regex)
   --testNamePattern, -t      Alias for --grep (Jest/Vitest compatible)
+  --testPathPattern <pat>    Filter test files by path pattern (regex)
+  --testTimeout <ms>         Default timeout for each test (ms)
+  --shard <i>/<n>            Run only the i-th of n shards (1-indexed)
+  --bail, -b                 Stop after first failure; skip importing remaining files
+  --verbose, -v              Stream each test result as it runs
+  --force-exit               Force exit after all tests complete (prevents hanging on open handles)
+  --watch, -w                Re-run tests on file change (spawns fresh process per change)
+  --no-parallel              Import test files sequentially (default: parallel)
+  --runInBand, -i            Force serial: sequential imports + override describe.concurrent
+  --passWithNoTests          Exit 0 even when no test files are found
+  --listTests                Print discovered test file paths and exit
+  --clearMocks               Auto-call clearAllMocks() before each test
+  --resetMocks               Auto-call resetAllMocks() before each test
+  --restoreMocks             Auto-call restoreAllMocks() before each test
   --help, -h                 Show help
 
 Discovers: *.test.mjs, *.test.js, *.spec.mjs, *.spec.js
 ```
 
-The CLI imports all discovered test files in a single process, then runs everything once. No workers, no transforms, no config.
+By default the CLI imports all discovered test files in parallel, then runs everything once. With `--bail`, it imports one file at a time and stops on the first failure (skipping the rest). No workers, no transforms, no config.
 
 ```bash
 npx pure-test tests/                     # discover and run all tests
 npx pure-test tests/ --reporter tap      # TAP output
 npx pure-test tests/ --reporter json     # JSON output
-npx pure-test tests/ --reporter minimal  # dots output
+npx pure-test tests/ --reporter verbose  # streaming spec format
 npx pure-test tests/math.test.mjs        # single file
 npx pure-test tests/ --grep "auth"       # only tests matching "auth"
-npx pure-test tests/ -t "User.*login"    # regex pattern (Jest/Vitest compatible)
+npx pure-test tests/ --shard 1/4         # CI: split across 4 jobs
+npx pure-test tests/ --watch             # re-run on file change
+npx pure-test tests/ --testTimeout 5000  # global 5s test timeout
+npx pure-test tests/ --bail              # stop importing remaining files on first failure
+npx pure-test tests/ --runInBand         # debug: serial everything
 ```
+
+### Shard for CI parallelism
+
+Split the test file list across N jobs:
+
+```yaml
+# .github/workflows/test.yml
+strategy:
+  matrix:
+    shard: [1, 2, 3, 4]
+steps:
+  - run: pure-test tests/ --shard ${{ matrix.shard }}/4
+```
+
+Empty shards (more shards than files) exit `0` cleanly so small suites don't fail CI.
+
+### Watch mode
+
+`--watch` runs tests once, then watches the target directories. On any `.ts`/`.tsx`/`.js`/`.mjs`/`.jsx` change, it kills the in-flight child (if any) and re-spawns a fresh process — sidesteps the ESM module cache so changes to shared helpers get picked up.
+
+Cross-runtime: uses `node:child_process.spawn` on Node/Bun, `Deno.Command` on Deno (auto-detected).
 
 ## API Reference
 
@@ -325,6 +364,39 @@ expect(() => {}).not.toThrow()
 
 await expect(Promise.resolve(42)).resolves.toBe(42)
 await expect(Promise.reject(new Error('fail'))).rejects.toBeInstanceOf(Error)
+```
+
+#### Custom Matchers (`expect.extend`)
+
+Register project-specific matchers; they integrate with `.not` automatically:
+
+```ts
+import { expect } from '@igorjs/pure-test'
+
+expect.extend({
+  toBeWithin(received, min, max) {
+    const pass = received >= min && received <= max
+    return {
+      pass,
+      message: () => `expected ${received} to be within ${min}..${max}`,
+    }
+  },
+})
+
+expect(5).toBeWithin(1, 10)
+expect(50).not.toBeWithin(1, 10)
+```
+
+A matcher returns `{ pass: boolean; message(): string }`. The matcher's `this` is bound to `{ isNot: boolean }` so you can produce different messages depending on negation. Custom matchers are dispatched via a `Proxy` that falls through to built-ins first, so they never shadow `toBe`/`toEqual`/etc.
+
+For TypeScript users, augment the `Expectation` interface to type your matchers:
+
+```ts
+declare module '@igorjs/pure-test' {
+  interface Expectation<T> {
+    toBeWithin(min: number, max: number): void
+  }
+}
 ```
 
 ### Spies
@@ -593,28 +665,58 @@ getRealSystemTime()  // real Date.now(), bypasses fake
 ```ts
 import { restoreAllMocks, clearAllMocks, resetAllMocks } from '@igorjs/pure-test'
 
-restoreAllMocks()       // restore all spied methods to originals
+restoreAllMocks()       // restore all spied methods to originals (also clears stubs)
 clearAllMocks()    // clear call history on all spies, keep implementations
 resetAllMocks()    // clear history + reset implementations on all spies
 ```
 
+The auto-* CLI flags wire these into the runner so they fire before each test:
+
+```bash
+pure-test tests/ --clearMocks      # clearAllMocks() before every test
+pure-test tests/ --resetMocks      # resetAllMocks() before every test
+pure-test tests/ --restoreMocks    # restoreAllMocks() before every test
+```
+
+### Stubbing env vars and globals
+
+Temporarily override `process.env` keys or `globalThis` properties; both are restored by `restoreAllMocks()`:
+
+```ts
+import { stubEnv, stubGlobal, restoreAllMocks, vi } from '@igorjs/pure-test'
+
+afterEach(() => restoreAllMocks())
+
+stubEnv('NODE_ENV', 'production')
+stubGlobal('fetch', mockFetch)
+
+// vi/jest namespace drop-ins also expose stubEnv/stubGlobal:
+vi.stubEnv('API_URL', 'https://staging.example.com')
+```
+
+Cross-runtime: `stubEnv` writes through `process.env` on Node and Bun, and `Deno.env.set` on Deno. Restoration uses the same backend it captured at stub time, so a stub set under one runtime restores correctly even if the global state changes mid-test.
+
 ### Reporters
 
-Four built-in output formats:
+Five built-in output formats:
 
 | Reporter | Description | Use case |
 |----------|-------------|----------|
 | `spec` | Human-readable with suite nesting (default) | Local development |
+| `verbose` | Like spec, but streams each result as it runs | Long-running suites where you want live feedback |
 | `tap` | TAP format | CI pipelines, piping to TAP consumers |
 | `json` | Machine-readable JSON | Custom tooling, dashboards |
-| `minimal` | Dots (`.` pass, `F` fail, `s` skip) | Large test suites, quick overview |
+| `minimal` | Dots (`.` pass, `F` fail, `s` skip, `T` todo) | Large test suites, quick overview |
 
 ```bash
 pure-test tests/ --reporter spec
+pure-test tests/ --reporter verbose
 pure-test tests/ --reporter tap
 pure-test tests/ --reporter json
 pure-test tests/ --reporter minimal
 ```
+
+The `spec` reporter prints results in one batch at the end. The `verbose` reporter implements the optional `onResult(testResult)` hook on the `Reporter` interface, so each test prints as it completes — useful for slow suites where you want to see progress.
 
 Programmatic selection:
 

@@ -96,6 +96,25 @@ pure-test tests/ --reporter tap      # TAP output for CI
 pure-test tests/ --reporter json     # machine-readable
 ```
 
+## Features supported (no porting needed)
+
+Most of the Jest API works as-is. These are supported by pure-test:
+
+| Jest feature | pure-test equivalent |
+|---|---|
+| `jest.useFakeTimers()` | `useFakeTimers()` or `jest.useFakeTimers()` — same API |
+| `jest.stubEnv(key, value)` | `jest.stubEnv()` — auto-restored by `restoreAllMocks()` |
+| `jest.stubGlobal(key, value)` | `jest.stubGlobal()` — auto-restored by `restoreAllMocks()` |
+| `expect.extend(matchers)` | `expect.extend()` — Proxy-dispatched, `.not` aware |
+| `--watch` | `pure-test --watch` — re-spawns child process per change |
+| `--testTimeout <ms>` | `pure-test --testTimeout 5000` |
+| `--testPathPattern <regex>` | `pure-test --testPathPattern "auth"` |
+| `--shard <i>/<n>` | `pure-test --shard 1/4` |
+| `--passWithNoTests` | `pure-test --passWithNoTests` |
+| `--listTests` | `pure-test --listTests` |
+| `--clearMocks` / `--resetMocks` / `--restoreMocks` | Same flags |
+| `--bail` / `--runInBand` / `--forceExit` / `--verbose` | Same flags |
+
 ## Features not supported
 
 These Jest features are intentionally omitted. The table explains why and what to use instead.
@@ -103,13 +122,10 @@ These Jest features are intentionally omitted. The table explains why and what t
 | Jest feature | Why not | Alternative |
 |-------------|---------|-------------|
 | `jest.mock('module')` | Module mocking is runtime-specific magic that requires transforms | Use dependency injection: pass dependencies as parameters |
-| `jest.useFakeTimers()` | Supported | `useFakeTimers()` or `jest.useFakeTimers()` — same API |
 | `jest.requireActual()` | Only needed alongside module mocking | Not needed when using dependency injection |
 | Snapshot testing | File I/O, brittle, hides intent, diffs are hard to review | Write explicit assertions that document expected behavior |
-| `--coverage` | Requires V8 or Istanbul integration | Use [`c8`](https://github.com/bcoe/c8) or your runtime's built-in coverage |
-| `--watch` | File system watching adds complexity | Use [`watchexec`](https://github.com/watchexec/watchexec) or `nodemon` externally |
+| `--coverage` (built-in) | First-party coverage adds dependencies | Use [`c8`](https://github.com/bcoe/c8) on Node, `deno coverage` on Deno (per-runtime configs supported) |
 | Worker isolation | ~50ms overhead per file, unnecessary for well-written tests | Use `beforeEach`/`afterEach` for per-test setup/teardown |
-| `expect.extend()` | Custom matcher API adds complexity | Use helper functions that call `expect()` internally |
 
 ## Example: before and after
 

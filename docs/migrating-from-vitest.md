@@ -117,6 +117,24 @@ If your Vitest config uses `globals: true` (auto-injects `describe`/`it`/`expect
   })
 ```
 
+## Features supported (no porting needed)
+
+Most of the Vitest API works as-is. These are supported by pure-test:
+
+| Vitest feature | pure-test equivalent |
+|---|---|
+| `vi.useFakeTimers()` | `useFakeTimers()` or `vi.useFakeTimers()` — same API |
+| `vi.stubEnv(key, value)` | `vi.stubEnv()` — auto-restored by `restoreAllMocks()` |
+| `vi.stubGlobal(key, value)` | `vi.stubGlobal()` — auto-restored by `restoreAllMocks()` |
+| `expect.extend(matchers)` | `expect.extend()` — Proxy-dispatched, `.not` aware |
+| `--watch` | `pure-test --watch` — re-spawns child process per change |
+| `--testTimeout <ms>` | `pure-test --testTimeout 5000` |
+| `--testPathPattern <regex>` | `pure-test --testPathPattern "auth"` |
+| `--shard <i>/<n>` | `pure-test --shard 1/4` |
+| `--passWithNoTests` | `pure-test --passWithNoTests` |
+| `--listTests` | `pure-test --listTests` |
+| `--clearMocks` / `--resetMocks` / `--restoreMocks` | Same flags |
+
 ## Features not supported
 
 These Vitest features are intentionally omitted. The table explains why and what to use instead.
@@ -124,13 +142,9 @@ These Vitest features are intentionally omitted. The table explains why and what
 | Vitest feature | Why not | Alternative |
 |-------------|---------|-------------|
 | `vi.mock('module')` | Module mocking requires transform hooks that are runtime-specific | Use dependency injection: pass dependencies as parameters |
-| `vi.useFakeTimers()` | Supported | `useFakeTimers()` or `vi.useFakeTimers()` — same API |
-| `vi.stubGlobal()` | Mutating globals is fragile and hard to debug | Pass globals as function parameters |
 | `vi.hoisted()` | Only works with Vite's transform pipeline | Not needed without transforms |
-| `--coverage` | Requires V8 or Istanbul provider integration | Use [`c8`](https://github.com/bcoe/c8) or your runtime's built-in coverage |
-| `--watch` | Vite HMR integration, adds complexity | Use [`watchexec`](https://github.com/watchexec/watchexec) or `nodemon` externally |
+| `--coverage` (built-in) | First-party coverage adds dependencies | Use [`c8`](https://github.com/bcoe/c8) on Node, `deno coverage` on Deno (per-runtime configs supported) |
 | `vitest.config.ts` | Config file adds startup overhead | No config needed, use CLI args |
-| `expect.extend()` | Custom matcher API adds API surface | Use helper functions that call `expect()` internally |
 | Snapshot testing | File I/O, brittle, diffs obscure intent | Write explicit assertions |
 | `--typecheck` | Requires tsc integration | Run `tsc --noEmit` separately |
 
