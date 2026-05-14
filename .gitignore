@@ -6,7 +6,9 @@ dist/
 # Secrets and credentials
 .env
 .env.*
+# Ignore .npmrc anywhere (auth tokens), but allow the project-root one (config only).
 .npmrc
+!/.npmrc
 *.pem
 *.key
 
