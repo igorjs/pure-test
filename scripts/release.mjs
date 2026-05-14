@@ -128,27 +128,59 @@ if (!bump) {
 const newTag = `v${newVersion}`;
 log(bump ? `\nRelease: v${currentVersion} -> ${newTag}` : `\nRelease: ${newTag}`);
 
-// -- Refuse to overwrite an existing tag or release ---------------------------
+// -- Detect existing tag/release state ---------------------------------------
+// A published GitHub release is the point of no return — refuse to recreate.
+// A tag that exists without a release is recoverable: skip the tag step and
+// proceed to publish the missing release.
 
-try {
-  run(`git rev-parse --verify ${newTag}`);
-  die(`Tag ${newTag} already exists locally. Refusing to overwrite.`);
-} catch (e) {
-  // git rev-parse exits non-zero when the tag is missing — that's what we want.
-  if (e.status === undefined) throw e;
-}
-
-const remoteTag = run(`git ls-remote --tags origin refs/tags/${newTag}`);
-if (remoteTag.length > 0) {
-  die(`Tag ${newTag} already exists on origin. Refusing to overwrite.`);
-}
-
+let releaseExists = false;
 try {
   run(`gh release view ${newTag}`);
-  die(`GitHub release ${newTag} already exists. Refusing to recreate.`);
+  releaseExists = true;
 } catch (e) {
-  // gh release view exits non-zero when not found — expected.
   if (e.status === undefined) throw e;
+}
+if (releaseExists) {
+  die(`GitHub release ${newTag} already exists. Refusing to recreate.`);
+}
+
+let localTagExists = false;
+try {
+  run(`git rev-parse --verify ${newTag}`);
+  localTagExists = true;
+} catch (e) {
+  if (e.status === undefined) throw e;
+}
+
+const remoteTagExists = run(`git ls-remote --tags origin refs/tags/${newTag}`).length > 0;
+
+const tagExists = localTagExists || remoteTagExists;
+if (tagExists) {
+  log(`Tag ${newTag} already exists (local=${localTagExists}, remote=${remoteTagExists}).`);
+  log("Skipping tag creation; will publish the missing GitHub release only.");
+
+  // Sanity check: when tag exists locally, it should point at HEAD or an
+  // ancestor of HEAD. Anything else means HEAD has moved past the tag and
+  // a re-tag is needed manually.
+  if (localTagExists) {
+    const tagSha = run(`git rev-parse ${newTag}^{commit}`);
+    const headSha = run("git rev-parse HEAD");
+    const isAncestor = (() => {
+      try {
+        run(`git merge-base --is-ancestor ${tagSha} ${headSha}`);
+        return true;
+      } catch (e) {
+        if (e.status === undefined) throw e;
+        return false;
+      }
+    })();
+    if (!isAncestor) {
+      die(
+        `Tag ${newTag} (${tagSha.slice(0, 9)}) is not an ancestor of HEAD (${headSha.slice(0, 9)}). ` +
+          `Refusing to release; re-tag manually if intentional.`,
+      );
+    }
+  }
 }
 
 // -- Find previous tag (for changelog range) ---------------------------------
@@ -407,14 +439,22 @@ if (stagedChanges.length > 0) {
   log("No file changes to commit — tagging current HEAD directly.");
 }
 
-log("Tagging...");
-run(canSign ? `git tag -s ${newTag} -m "${newTag}"` : `git tag ${newTag} -m "${newTag}"`);
+if (!localTagExists) {
+  log("Tagging...");
+  run(canSign ? `git tag -s ${newTag} -m "${newTag}"` : `git tag ${newTag} -m "${newTag}"`);
+} else {
+  log(`Skipping tag creation — ${newTag} already exists locally.`);
+}
 
 log("Pushing...");
 if (stagedChanges.length > 0) {
   run("git push origin HEAD:refs/heads/main");
 }
-run(`git push origin ${newTag}`);
+if (!remoteTagExists) {
+  run(`git push origin ${newTag}`);
+} else {
+  log(`Skipping tag push — ${newTag} already on origin.`);
+}
 
 // -- Create GitHub release ----------------------------------------------------
 
