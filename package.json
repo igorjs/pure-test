@@ -37,6 +37,9 @@
     "test:types": "tsgo -p tsconfig.test.json",
     "test:ci": "node scripts/test-ci.mjs",
     "coverage": "c8 --config .c8rc.node.json node tests/self-test.mjs",
+    "coverage:node": "c8 --config .c8rc.node.json --report-dir=coverage/node --reporter=text --reporter=lcov --reporter=html node tests/self-test.mjs",
+    "coverage:deno": "rm -rf coverage/deno-raw coverage/deno && mkdir -p coverage/deno && deno run --allow-all --coverage=coverage/deno-raw tests/self-test.mjs && deno coverage --include=dist/ --exclude=dist/runtime/env-process.js --exclude=dist/runtime/exit-process.js coverage/deno-raw && deno coverage --include=dist/ --exclude=dist/runtime/env-process.js --exclude=dist/runtime/exit-process.js --lcov --output=coverage/deno/coverage.lcov coverage/deno-raw",
+    "coverage:all": "node scripts/coverage-all.mjs",
     "release": "node scripts/release.mjs",
     "prepublishOnly": "node scripts/prepublish.mjs"
   },
