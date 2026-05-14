@@ -183,11 +183,22 @@ if (tagExists) {
   }
 }
 
-// -- Find previous tag (for changelog range) ---------------------------------
+// -- Find previous release tag (for changelog range) -------------------------
+// The changelog range is "previous tag..release commit". The release commit is
+// HEAD when we're about to create the tag, or the existing tag's commit when
+// the tag was already pushed by an earlier (interrupted) run.
 
-const lastTag = bump
-  ? `v${currentVersion}`
-  : run("git describe --tags --abbrev=0 HEAD 2>/dev/null").trim();
+const releaseSha = tagExists
+  ? run(`git rev-parse ${newTag}^{commit}`)
+  : run("git rev-parse HEAD");
+
+// Walk back from the release commit's parent to find the closest existing tag.
+let lastTag = "";
+try {
+  lastTag = run(`git describe --tags --abbrev=0 ${releaseSha}^ 2>/dev/null`).trim();
+} catch {
+  // No earlier tag — first release.
+}
 let hasLastTag = false;
 if (lastTag) {
   try {
@@ -219,7 +230,7 @@ const CHANGELOG_CATEGORIES = [
   { prefixes: ["perf"], label: "Changed" },
 ];
 
-const range = hasLastTag ? `${lastTag}..HEAD` : "HEAD";
+const range = hasLastTag ? `${lastTag}..${releaseSha}` : releaseSha;
 const rawLog = run(`git log --oneline ${range}`);
 const commits = rawLog
   .split("\n")
