@@ -390,8 +390,11 @@ export interface Expectation<T> {
 /** Create an expectation for a value. */
 export const expect = <T>(actual: T): Expectation<T> => createExpectation(actual, false);
 
+/** A constructor or built-in primitive wrapper that `expect.any()` accepts. */
+type AnyCtor = (new (...args: never) => unknown) | { readonly name: string };
+
 /** Match any value of a given type. */
-expect.any = (ctor: Function): AsymmetricMatcher => ({
+expect.any = (ctor: AnyCtor): AsymmetricMatcher => ({
   [ASYMMETRIC]: true,
   matches: (v: unknown) => {
     if (ctor === String) return typeof v === "string";
@@ -855,7 +858,11 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
         get: (_target, prop) => {
           if (prop === "then") return pending.then.bind(pending);
           return (...args: readonly unknown[]) =>
-            pending.then(exp => (exp[prop as keyof Expectation<Awaited<T>>] as Function)(...args));
+            pending.then(exp =>
+              (exp[prop as keyof Expectation<Awaited<T>>] as (...a: readonly unknown[]) => unknown)(
+                ...args,
+              ),
+            );
         },
       });
     },
@@ -878,7 +885,11 @@ const createExpectation = <T>(actual: T, negated: boolean): Expectation<T> => {
         get: (_target, prop) => {
           if (prop === "then") return pending.then.bind(pending);
           return (...args: readonly unknown[]) =>
-            pending.then(exp => (exp[prop as keyof Expectation<unknown>] as Function)(...args));
+            pending.then(exp =>
+              (exp[prop as keyof Expectation<unknown>] as (...a: readonly unknown[]) => unknown)(
+                ...args,
+              ),
+            );
         },
       });
     },
