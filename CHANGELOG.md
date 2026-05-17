@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.4.1] - 2026-05-17
+
+### Added
+- Add soft-conflict warnings for redundant flag combos
+- Add --runInBand and conflict detection
+- Add --shard, --watch, parallel imports, bail-stops-import
+- Add Tier 1+2 features for Jest/Vitest parity
+- Add --verbose streaming output and --force-exit flag
+- Support beforeAll/afterAll/beforeEach/afterEach hooks
+- Add Deno-native adapter at /deno subpath
+
+### Fixed
+- Replace banned Function type with explicit signatures
+- Add playwright and miniflare as pinned dev dependencies
+- Install playwright npm package before browser test
+
 ## [0.3.0] - 2026-05-05
 
 ### Added
@@ -103,6 +119,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Sync lockfile specifier with pinned biome version
 - Close unclosed else block in release script
 
+[0.4.1]: https://github.com/igorjs/pure-test/compare/v0.3.0...v0.4.1
 [0.3.0]: https://github.com/igorjs/pure-test/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/igorjs/pure-test/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/igorjs/pure-test/releases/tag/v0.1.0
