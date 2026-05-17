@@ -1,6 +1,6 @@
 {
   "name": "@igorjs/pure-test",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Minimal cross-runtime test runner. Works on Node, Deno, Bun, Workers, and Browser. Zero dependencies.",
   "type": "module",
   "main": "./dist/index.js",
