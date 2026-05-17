@@ -14,7 +14,12 @@
  *
  * Discovers files matching: *.test.mjs, *.test.js, *.spec.mjs, *.spec.js
  *
- * Cross-runtime: works on Node, Bun, and Deno (via node: imports).
+ * Bootstraps under Node via the shebang (npm bin-symlink convention).
+ * The script's code uses only `node:` imports plus a `detectRuntime()`
+ * helper, so the same file runs under Bun and Deno when invoked
+ * directly: `bun ./bin/pure-test.mjs`, `deno run -A ./bin/pure-test.mjs`.
+ * See README "Invoking under Bun and Deno" for full invocation patterns.
+ *
  * No workers. No transforms. No config. Just import and run.
  */
 

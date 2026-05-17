@@ -118,6 +118,30 @@ Empty shards (more shards than files) exit `0` cleanly so small suites don't fai
 
 Cross-runtime: uses `node:child_process.spawn` on Node/Bun, `Deno.Command` on Deno (auto-detected).
 
+### Invoking under Bun and Deno
+
+The `bin/pure-test.mjs` shebang is `#!/usr/bin/env node`. That picks the *bootstrap* runtime, not what the CLI can run under: POSIX shebangs are limited to one interpreter, and Node is the universal choice because the npm bin-symlink mechanism (`node_modules/.bin/pure-test`) assumes it. The script's own code uses only `node:` imports, so it runs identically under any of the three runtimes once the bootstrap step is bypassed.
+
+| Runtime | Invocation |
+|---|---|
+| Node | `pure-test tests/` or `npx pure-test tests/` (shebang fires, Node executes) |
+| Bun | `bun ./node_modules/@igorjs/pure-test/bin/pure-test.mjs tests/` |
+| Deno | `deno run -A ./node_modules/@igorjs/pure-test/bin/pure-test.mjs tests/`, or `deno run -A npm:@igorjs/pure-test/bin/pure-test.mjs tests/` (no install needed) |
+
+Pin the invocation in `package.json` scripts so the call site stays short:
+
+```json
+{
+  "scripts": {
+    "test": "pure-test tests/",
+    "test:bun": "bun ./node_modules/@igorjs/pure-test/bin/pure-test.mjs tests/",
+    "test:deno": "deno run -A ./node_modules/@igorjs/pure-test/bin/pure-test.mjs tests/"
+  }
+}
+```
+
+**You don't need the CLI to run Pure Test.** Test files auto-run on import, so `node tests/foo.test.mjs`, `bun tests/foo.test.mjs`, and `deno run -A tests/foo.test.mjs` all work directly without involving the CLI. The CLI exists as a convenience layer for discovery, sharding, watch mode, and reporters; under any runtime you can also write a single entry file that imports all your tests and let the runner take over.
+
 ## API Reference
 
 ### Test Registration
