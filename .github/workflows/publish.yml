@@ -50,7 +50,7 @@ jobs:
         run: pnpm run test:types
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: publish-dist
           path: |
@@ -77,14 +77,17 @@ jobs:
       - name: Set version from tag
         run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: publish-dist
 
       - name: Publish to npm
+        # --ignore-scripts skips the prepublishOnly hook (which runs `pnpm run lint`
+        # and would fail because devDependencies are not installed in this job).
+        # The `verify` job already runs lint, type-check, build, and all tests.
         run: |
           for i in 1 2 3; do
-            npm publish --provenance --access public && exit 0
+            npm publish --provenance --access public --ignore-scripts && exit 0
             echo "::warning::npm publish attempt $i failed, retrying in 15s..."
             sleep 15
           done
@@ -108,14 +111,16 @@ jobs:
       - name: Set version from tag
         run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: publish-dist
 
       - name: Publish to GitHub Packages
+        # --ignore-scripts: same rationale as publish-npm; verify already
+        # validated everything, so skip the prepublishOnly hook.
         run: |
           for i in 1 2 3; do
-            pnpm publish --no-git-checks && exit 0
+            pnpm publish --no-git-checks --ignore-scripts && exit 0
             echo "::warning::GPR publish attempt $i failed, retrying in 15s..."
             sleep 15
           done
@@ -132,7 +137,7 @@ jobs:
       - name: Set version from tag
         run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
 
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: publish-dist
 
