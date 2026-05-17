@@ -82,5 +82,11 @@
     "typescript": {
       "optional": true
     }
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "sharp",
+      "workerd"
+    ]
   }
 }
