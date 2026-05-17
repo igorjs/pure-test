@@ -96,7 +96,9 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-gpr:
-    needs: verify
+    # Gated on publish-npm: npm is the canonical registry; if its publish or
+    # provenance attestation fails we should not advertise the version on GPR.
+    needs: publish-npm
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -129,7 +131,9 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   publish-jsr:
-    needs: verify
+    # Gated on publish-npm: same rationale as publish-gpr; npm is the source
+    # of truth for whether the release went out.
+    needs: publish-npm
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
