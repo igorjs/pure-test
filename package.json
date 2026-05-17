@@ -23,7 +23,7 @@
     "bin"
   ],
   "sideEffects": false,
-  "packageManager": "pnpm@11.1.2",
+  "packageManager": "pnpm@11.0.9",
   "engines": {
     "node": ">=22"
   },
