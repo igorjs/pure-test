@@ -13,6 +13,7 @@
  *   pure-test tests/ --reporter spec       # human-readable (default)
  *
  * Discovers files matching: *.test.mjs, *.test.js, *.spec.mjs, *.spec.js
+ * (and, with --ts, *.test.ts, *.spec.ts, *.test.mts, *.spec.mts)
  *
  * Bootstraps under Node via the shebang (npm bin-symlink convention).
  * The script's code uses only `node:` imports plus a `detectRuntime()`
@@ -180,6 +181,7 @@ OPTIONS:
   --watch, -w                Re-run tests on file change (spawns fresh process per change)
   --no-parallel              Import test files sequentially (default: parallel)
   --runInBand, -i            Force everything serial: sequential imports + override describe.concurrent
+  --ts                       Discover .ts / .mts tests (Node opt-in; automatic on Deno/Bun)
   --passWithNoTests          Exit 0 even when no test files are found
   --listTests                Print discovered test file paths and exit
   --clearMocks               Auto-call clearAllMocks() before each test
@@ -240,6 +242,48 @@ function detectRuntime() {
   if (typeof globalThis.Deno !== "undefined") return "deno";
   if (typeof globalThis.Bun !== "undefined") return "bun";
   return "node";
+}
+
+// How the current Node handles `.ts`:
+//   'default' -> strips types with no flag (Node >=24, >=23.6, or >=22.18 LTS backport)
+//   'reexec'  -> can strip but needs --experimental-strip-types (22.6-22.17, 23.0-23.5)
+//   'flag'    -> can strip and the flag is already present (e.g. after re-exec)
+//   'none'    -> too old to strip (< 22.6)
+function nodeTsMode() {
+  const v = globalThis.process?.versions?.node;
+  if (!v) return "none";
+  const [maj, min] = v.split(".").map(Number);
+  const canStrip = maj > 22 || (maj === 22 && min >= 6);
+  if (!canStrip) return "none";
+  const stripsByDefault = maj >= 24 || (maj === 23 && min >= 6) || (maj === 22 && min >= 18);
+  if (stripsByDefault) return "default";
+  const execArgv = globalThis.process?.execArgv ?? [];
+  return execArgv.some((a) => a.includes("strip-types")) ? "flag" : "reexec";
+}
+
+// On a Node that can strip types but is missing the flag, relaunch once with it
+// (before any .ts import runs). Built-ins only, so zero-dep is preserved. No-op
+// on Deno/Bun (native) and on default-strip Node.
+async function ensureTsCapableNode(files, runtime) {
+  if (runtime !== "node") return;
+  if (!files.some((f) => /\.m?ts$/.test(f))) return; // .ts / .mts, not .cts
+  const mode = nodeTsMode();
+  if (mode === "default" || mode === "flag") return;
+  if (mode === "none") {
+    console.error(
+      "pure-test: .ts test files require Node >= 22.6 (type stripping) or a TS-capable runtime (Deno, Bun).",
+    );
+    process.exit(1);
+  }
+  // mode === "reexec": the relaunched child sees the flag in execArgv, so
+  // nodeTsMode() returns "flag" there and this guard does not loop.
+  const { spawnSync } = await import("node:child_process");
+  const r = spawnSync(
+    process.execPath,
+    ["--experimental-strip-types", ...process.execArgv, process.argv[1], ...process.argv.slice(2)],
+    { stdio: "inherit" },
+  );
+  process.exit(r.status ?? 1);
 }
 
 async function spawnChild(scriptPath, args) {
@@ -386,7 +430,7 @@ async function main() {
       process.exit(0);
     }
     console.error("No test files found.");
-    console.error("Looking for: *.test.mjs, *.test.js, *.spec.mjs, *.spec.js");
+    console.error(`Looking for: ${patterns.map((p) => `*${p}`).join(", ")}`);
     process.exit(1);
   }
 
@@ -394,6 +438,9 @@ async function main() {
     for (const f of testFiles) console.log(f);
     process.exit(0);
   }
+
+  // Guard + re-exec must happen BEFORE any dynamic import() of a .ts file.
+  await ensureTsCapableNode(testFiles, runtime);
 
   console.error(`Found ${testFiles.length} test file${testFiles.length > 1 ? "s" : ""}${opts.shard ? ` (shard ${opts.shard.index}/${opts.shard.total})` : ""}:`);
   for (const f of testFiles) console.error(`  ${f}`);

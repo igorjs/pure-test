@@ -65,3 +65,41 @@ describe("CLI: .ts discovery is opt-in (--ts)", () => {
     expect(r.stdout).toContain("beta.test.ts");
   });
 });
+
+describe("CLI: .ts runs via runtime type stripping", () => {
+  let dir;
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), "pt-ts-run-"));
+    write(dir, "ok.test.ts", tsPassing("strips types and runs"));
+  });
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("runs a strippable .ts test with --ts", async () => {
+    const r = await run([dir, "--ts", "--reporter", "minimal"]);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain("passed");
+  });
+});
+
+describe("CLI: non-strippable .ts fails clearly", () => {
+  let dir;
+  beforeAll(() => {
+    dir = mkdtempSync(join(tmpdir(), "pt-ts-enum-"));
+    write(dir, "bad.test.ts", tsEnum("enum is not erasable"));
+  });
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  it("exits non-zero on enum (not erasable) under strip", async () => {
+    const r = await run([dir, "--ts", "--reporter", "minimal"]);
+    expect(r.code).not.toBe(0);
+    expect(r.stderr).toMatch(/enum|TypeScript|strip|SyntaxError/i);
+  });
+});
+
+describe("CLI: --help documents --ts", () => {
+  it("lists the --ts flag in usage", async () => {
+    const r = await run(["--help"]);
+    expect(r.code).toBe(0);
+    expect(r.stdout).toContain("--ts");
+  });
+});
