@@ -28,21 +28,22 @@ import { readdir, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
 const TEST_PATTERNS = [".test.mjs", ".test.js", ".spec.mjs", ".spec.js"];
+const TS_TEST_PATTERNS = [".test.ts", ".test.mts", ".spec.ts", ".spec.mts"];
 const VALID_REPORTERS = ["spec", "tap", "json", "minimal", "verbose"];
 const SOURCE_EXTS = [".js", ".mjs", ".ts", ".tsx", ".jsx"];
 
-const isTestFile = (name) => TEST_PATTERNS.some((p) => name.endsWith(p));
+const isTestFile = (name, patterns) => patterns.some((p) => name.endsWith(p));
 const isSourceFile = (name) => SOURCE_EXTS.some((e) => name.endsWith(e));
 
-async function discoverTests(dir) {
+async function discoverTests(dir, patterns) {
   const files = [];
   const entries = await readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
     const full = join(dir, entry.name);
     if (entry.name === "node_modules" || entry.name === "dist" || entry.name === ".git") continue;
     if (entry.isDirectory()) {
-      files.push(...(await discoverTests(full)));
-    } else if (entry.isFile() && isTestFile(entry.name)) {
+      files.push(...(await discoverTests(full, patterns)));
+    } else if (entry.isFile() && isTestFile(entry.name, patterns)) {
       files.push(full);
     }
   }
@@ -92,6 +93,7 @@ function parseArgs(argv) {
     watch: false,
     parallel: true,
     runInBand: false,
+    ts: false,
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -156,6 +158,8 @@ function parseArgs(argv) {
     } else if (a === "--runInBand" || a === "-i") {
       opts.runInBand = true;
       opts.parallel = false;
+    } else if (a === "--ts") {
+      opts.ts = true;
     } else if (a === "--help" || a === "-h") {
       console.log(`
 pure-test - minimal cross-runtime test runner
@@ -334,7 +338,7 @@ async function runWatch(targets, childArgs) {
 
 // ── Main ────────────────────────────────────────────────────────────────────
 
-async function discoverAll(targets) {
+async function discoverAll(targets, patterns) {
   const files = [];
   for (const target of targets) {
     const abs = resolve(target);
@@ -343,7 +347,7 @@ async function discoverAll(targets) {
       console.error(`Error: ${target} not found`);
       process.exit(1);
     }
-    if (s.isDirectory()) files.push(...(await discoverTests(abs)));
+    if (s.isDirectory()) files.push(...(await discoverTests(abs, patterns)));
     else if (s.isFile()) files.push(abs);
   }
   return files;
@@ -360,8 +364,12 @@ async function main() {
     return;
   }
 
-  // Discover → filter → shard
-  let testFiles = await discoverAll(opts.targets);
+  // Discover → filter → shard. .ts/.mts are opt-in via --ts on Node, automatic
+  // on Deno/Bun (native TS), additive to the default .mjs/.js suffixes.
+  const runtime = detectRuntime();
+  const tsEnabled = opts.ts || runtime === "deno" || runtime === "bun";
+  const patterns = tsEnabled ? [...TEST_PATTERNS, ...TS_TEST_PATTERNS] : TEST_PATTERNS;
+  let testFiles = await discoverAll(opts.targets, patterns);
   if (opts.testPathPattern) {
     const re = new RegExp(opts.testPathPattern);
     testFiles = testFiles.filter((f) => re.test(f));

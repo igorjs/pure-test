@@ -52,7 +52,8 @@ import {
 // ── CLI integration tests (Node-only) ───────────────────────────────────────
 // The bin spawns process.execPath as a Node binary, so the suite is skipped
 // under Deno/Bun where execPath resolves to those runtimes. Distroless images
-// may also omit cli.test.mjs from their COPY; treat a missing import as a skip.
+// may omit cli.test.mjs / ts-cli.test.mjs from their COPY; treat a missing
+// import as a skip.
 const _runtime =
   typeof globalThis.Deno !== "undefined"
     ? "Deno"
@@ -63,6 +64,7 @@ let _cliImportError;
 if (_runtime === "Node") {
   try {
     await import("./cli.test.mjs");
+    await import("./ts-cli.test.mjs");
   } catch (e) {
     _cliImportError = e;
   }
