@@ -71,6 +71,7 @@ Options:
   --watch, -w                Re-run tests on file change (spawns fresh process per change)
   --no-parallel              Import test files sequentially (default: parallel)
   --runInBand, -i            Force serial: sequential imports + override describe.concurrent
+  --ts                       Discover .ts / .mts tests (Node opt-in; automatic on Deno/Bun)
   --passWithNoTests          Exit 0 even when no test files are found
   --listTests                Print discovered test file paths and exit
   --clearMocks               Auto-call clearAllMocks() before each test
@@ -78,10 +79,12 @@ Options:
   --restoreMocks             Auto-call restoreAllMocks() before each test
   --help, -h                 Show help
 
-Discovers: *.test.mjs, *.test.js, *.spec.mjs, *.spec.js
+Discovers: *.test.mjs, *.test.js, *.spec.mjs, *.spec.js (and, with --ts, *.test.ts, *.spec.ts, *.test.mts, *.spec.mts)
 ```
 
 By default the CLI imports all discovered test files in parallel, then runs everything once. With `--bail`, it imports one file at a time and stops on the first failure (skipping the rest). No workers, no transforms, no config.
+
+TypeScript is opt-in: pass `--ts` to also discover `.ts` / `.mts` tests (automatic on Deno and Bun). Type stripping is delegated to the runtime — no build step, no bundled transpiler — so a TypeScript-capable runtime is required (Deno, Bun, or Node with type stripping). See [docs/typescript.md](docs/typescript.md).
 
 ```bash
 npx pure-test tests/                     # discover and run all tests

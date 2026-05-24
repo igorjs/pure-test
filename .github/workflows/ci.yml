@@ -80,6 +80,9 @@ jobs:
       - name: Adapter smoke test (Deno ${{ matrix.deno-version }})
         run: deno test --allow-read tests/deno-adapter.test.mjs
 
+      - name: TypeScript discovery (.ts native, Deno ${{ matrix.deno-version }})
+        run: deno run --allow-all bin/pure-test.mjs tests/ts/
+
   # ── Bun (2 jobs) ──────────────────────────────────────────────────────────
   test-bun:
     needs: lint-and-test
@@ -102,6 +105,9 @@ jobs:
 
       - name: Unit tests (Bun ${{ matrix.bun-version }})
         run: bun tests/self-test.mjs
+
+      - name: TypeScript discovery (.ts native, Bun ${{ matrix.bun-version }})
+        run: bun bin/pure-test.mjs tests/ts/
 
   # ── Cloudflare Workers (miniflare) ────────────────────────────────────────
   test-workers:
