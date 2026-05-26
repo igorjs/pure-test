@@ -1,21 +1,16 @@
 # Security Policy
 
-## Supported Versions
-
-| Version | Supported |
-|---------|-----------|
-| 0.4.x (latest) | Yes |
-| < 0.4 | No |
-
-Only the latest minor version receives security patches. Upgrade to the latest version before reporting.
-
 ## Reporting a Vulnerability
 
 **Do not open a public GitHub issue for security vulnerabilities.**
 
-To report a vulnerability, email: **oss@mail.igorjs.io**
+To report a vulnerability, use one of:
+
+- **GitHub Security Advisories**: [Report a vulnerability](https://github.com/igorjs/pure-test/security/advisories/new)
+- **Email**: **oss@mail.igorjs.io**
 
 Include:
+
 - Description of the vulnerability
 - Steps to reproduce
 - Affected versions
@@ -32,23 +27,41 @@ If the report is accepted, you will be credited in the release notes (unless you
 
 If the report is declined (not a vulnerability, or out of scope), you will receive an explanation and may open a public issue.
 
-### Scope
+## Supported Versions
 
-The following are in scope:
-- Test isolation failures (state leakage between tests)
-- Code execution vulnerabilities in the test runner
-- Mock/spy lifecycle issues that could mask real failures
-- Denial of service via crafted test input
+| Version | Supported |
+|---------|-----------|
+| `v0.4.2` (latest) | Yes |
+| earlier | No |
 
-The following are out of scope:
-- Vulnerabilities in dependencies (there are none)
-- Issues requiring physical access to the machine
+Only the latest released version (`v0.4.2`) receives security patches. Upgrade to the latest version before reporting.
+
+## Scope
+
+### In scope
+
+Vulnerabilities in this repository's code, including but not limited to:
+
+- Code execution, injection, or memory safety issues
+- Cryptographic weaknesses
+- Authentication or authorisation bypasses
+- Denial of service via crafted input
+- Bypass of any documented security guarantees (sandbox, isolation, etc.)
+- Compromise of the build, release, or signing pipeline (where applicable)
+
+### Out of scope
+
+- Vulnerabilities in third-party dependencies (report to the upstream maintainer)
+- Issues that require an attacker to already have admin or write access to this repository
+- Theoretical issues without a practical exploit path
 - Social engineering attacks
-- Security of code under test (that is the user's responsibility)
+- Issues requiring physical access to the user's machine
+- Bugs in development-only tooling not shipped to end users
 
-## Security Design Principles
+## Hardening posture
 
-- **Zero dependencies** eliminates supply chain risk
-- **Isolated test execution** prevents state leakage between test cases
-- **No eval, no dynamic require** in production code
-- **Cross-runtime compatibility** with no runtime-specific privileged APIs
+This repository is part of the `igorjs` repo set and follows a common
+hardening posture: ruleset-managed branch and tag protection, signed
+commits, SHA-pinned third-party actions, and an App-based bot identity
+with narrow per-repo scope. For the cross-repo configuration as code,
+see the [`repo-config`](https://github.com/igorjs/repo-config) repo.
