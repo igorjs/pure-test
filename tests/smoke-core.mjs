@@ -102,7 +102,9 @@ describe("assertions", () => {
   it("not", () => {
     expect(1).not.toBe(2);
     expect("foo").not.toContain("bar");
-    expect(() => {}).not.toThrow();
+    expect(() => {
+      /* noop */
+    }).not.toThrow();
   });
 });
 
@@ -131,7 +133,14 @@ describe("hooks", () => {
   beforeAll(() => order.push("beforeAll"));
   afterAll(() => {
     order.push("afterAll");
-    expect(order).toEqual(["beforeAll", "beforeEach", "afterEach", "beforeEach", "afterEach", "afterAll"]);
+    expect(order).toEqual([
+      "beforeAll",
+      "beforeEach",
+      "afterEach",
+      "beforeEach",
+      "afterEach",
+      "afterAll",
+    ]);
   });
   beforeEach(() => order.push("beforeEach"));
   afterEach(() => order.push("afterEach"));
