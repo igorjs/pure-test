@@ -127,196 +127,183 @@ const scheduleAutoRun = (): void => {
 
 // ── Registration API ────────────────────────────────────────────────────────
 
-/** Define a test suite. Nests inside the current suite. */
-export const describe = (name: string, fn: () => void): void => {
-  const suite: Suite = {
-    name,
-    tests: [],
-    suites: [],
-    beforeAll: [],
-    afterAll: [],
-    beforeEach: [],
-    afterEach: [],
-    concurrent: false,
-    only: false,
-  };
-  currentSuite.suites.push(suite);
-  const parent = currentSuite;
-  currentSuite = suite;
-  fn();
-  currentSuite = parent;
-  scheduleAutoRun();
+type SuiteAPI = {
+  (name: string, fn: () => void): void;
+  skip: (name: string, fn: () => void) => void;
+  only: (name: string, fn: () => void) => void;
+  concurrent: (name: string, fn: () => void) => void;
+  each: <T>(cases: ReadonlyArray<T>) => (name: string, fn: (...args: readonly unknown[]) => void) => void;
 };
+
+type TestAPI = {
+  (name: string, fn: () => void | Promise<void>, options?: number | TestOptions): void;
+  skip: (name: string, fn: () => void | Promise<void>) => void;
+  only: (name: string, fn: () => void | Promise<void>, options?: number | TestOptions) => void;
+  todo: (name: string) => void;
+  each: <T>(cases: ReadonlyArray<T>) => (name: string, fn: (...args: readonly unknown[]) => void | Promise<void>) => void;
+};
+
+const makeSuite = (name: string, opts: { concurrent: boolean; only: boolean }): Suite => ({
+  name,
+  tests: [],
+  suites: [],
+  beforeAll: [],
+  afterAll: [],
+  beforeEach: [],
+  afterEach: [],
+  ...opts,
+});
+
+const createSuite = (): SuiteAPI => {
+  const fn = (name: string, suiteFn: () => void): void => {
+    const s = makeSuite(name, { concurrent: false, only: false });
+    currentSuite.suites.push(s);
+    const parent = currentSuite;
+    currentSuite = s;
+    suiteFn();
+    currentSuite = parent;
+    scheduleAutoRun();
+  };
+
+  fn.skip = (name: string, _fn: () => void): void => {
+    currentSuite.suites.push(makeSuite(name, { concurrent: false, only: false }));
+    scheduleAutoRun();
+  };
+
+  fn.only = (name: string, suiteFn: () => void): void => {
+    hasOnly = true;
+    const s = makeSuite(name, { concurrent: false, only: true });
+    currentSuite.suites.push(s);
+    const parent = currentSuite;
+    currentSuite = s;
+    suiteFn();
+    currentSuite = parent;
+    scheduleAutoRun();
+  };
+
+  /**
+   * Define a concurrent test suite. All tests in this suite run in parallel
+   * via Promise.all. Use when tests are independent and don't share mutable state.
+   *
+   * @example
+   * ```ts
+   * suite.concurrent('crypto operations', () => {
+   *   test('hash', async () => { ... })   // runs in parallel
+   *   test('sign', async () => { ... })   // runs in parallel
+   *   test('verify', async () => { ... }) // runs in parallel
+   * })
+   * ```
+   */
+  fn.concurrent = (name: string, suiteFn: () => void): void => {
+    const s = makeSuite(name, { concurrent: true, only: false });
+    currentSuite.suites.push(s);
+    const parent = currentSuite;
+    currentSuite = s;
+    suiteFn();
+    currentSuite = parent;
+    scheduleAutoRun();
+  };
+
+  fn.each =
+    <T>(cases: ReadonlyArray<T>) =>
+    (name: string, suiteFn: (...args: readonly unknown[]) => void): void => {
+      for (let i = 0; i < cases.length; i++) {
+        const c = cases[i] as unknown;
+        fn(formatEachName(name, c, i), Array.isArray(c) ? () => suiteFn(...c) : () => suiteFn(c));
+      }
+    };
+
+  return fn;
+};
+
+const createTest = (): TestAPI => {
+  const fn = (
+    name: string,
+    testFn: () => void | Promise<void>,
+    options?: number | TestOptions,
+  ): void => {
+    const { timeout, retry } = parseTestOptions(options);
+    currentSuite.tests.push({ name, fn: testFn, skip: false, todo: false, only: false, timeout, retry });
+    scheduleAutoRun();
+  };
+
+  fn.skip = (name: string, _fn: () => void | Promise<void>): void => {
+    currentSuite.tests.push({
+      name,
+      fn: () => { /* noop: skipped */ },
+      skip: true,
+      todo: false,
+      only: false,
+      timeout: undefined,
+      retry: 0,
+    });
+    scheduleAutoRun();
+  };
+
+  fn.only = (name: string, testFn: () => void | Promise<void>, options?: number | TestOptions): void => {
+    hasOnly = true;
+    const { timeout, retry } = parseTestOptions(options);
+    currentSuite.tests.push({ name, fn: testFn, skip: false, todo: false, only: true, timeout, retry });
+    scheduleAutoRun();
+  };
+
+  fn.todo = (name: string): void => {
+    currentSuite.tests.push({
+      name,
+      fn: () => { /* noop: todo */ },
+      skip: false,
+      todo: true,
+      only: false,
+      timeout: undefined,
+      retry: 0,
+    });
+    scheduleAutoRun();
+  };
+
+  /**
+   * Create parameterised tests from an array of cases.
+   *
+   * Name templates support `%s`, `%d`, `%i`, `%f`, `%j`, `%o` (consumed in order),
+   * `%#` (test index), and `$property` (object key interpolation).
+   *
+   * @example
+   * ```ts
+   * test.each([1, 2, 3])('doubles %d', (n) => {
+   *   expect(n * 2).toBeGreaterThan(n)
+   * })
+   *
+   * test.each([[1, 2, 3], [2, 3, 5]])('%d + %d = %d', (a, b, sum) => {
+   *   expect(a + b).toBe(sum)
+   * })
+   *
+   * test.each([{ a: 1, b: 2, sum: 3 }])('$a + $b = $sum', ({ a, b, sum }) => {
+   *   expect(a + b).toBe(sum)
+   * })
+   * ```
+   */
+  fn.each =
+    <T>(cases: ReadonlyArray<T>) =>
+    (name: string, testFn: (...args: readonly unknown[]) => void | Promise<void>): void => {
+      for (let i = 0; i < cases.length; i++) {
+        const c = cases[i] as unknown;
+        fn(formatEachName(name, c, i), Array.isArray(c) ? () => testFn(...c) : () => testFn(c));
+      }
+    };
+
+  return fn;
+};
+
+/** Define a test suite. Nests inside the current suite. */
+export const suite: SuiteAPI = createSuite();
+
+/** Alias for suite. */
+export const describe: SuiteAPI = suite;
 
 /** Define a test case. Optional timeout or options { timeout?, retry? }. */
-export const it = (
-  name: string,
-  fn: () => void | Promise<void>,
-  options?: number | TestOptions,
-): void => {
-  const { timeout, retry } = parseTestOptions(options);
-  currentSuite.tests.push({ name, fn, skip: false, todo: false, only: false, timeout, retry });
-  scheduleAutoRun();
-};
+export const test: TestAPI = createTest();
 
-/** Alias for it. */
-export const test = it;
-
-/** Skip a test. */
-it.skip = (name: string, _fn: () => void | Promise<void>): void => {
-  currentSuite.tests.push({
-    name,
-    fn: () => {
-      /* noop: skipped */
-    },
-    skip: true,
-    todo: false,
-    only: false,
-    timeout: undefined,
-    retry: 0,
-  });
-  scheduleAutoRun();
-};
-
-/** Focus on a single test. When any .only exists, all other tests are skipped. */
-it.only = (name: string, fn: () => void | Promise<void>, options?: number | TestOptions): void => {
-  hasOnly = true;
-  const { timeout, retry } = parseTestOptions(options);
-  currentSuite.tests.push({ name, fn, skip: false, todo: false, only: true, timeout, retry });
-  scheduleAutoRun();
-};
-
-/** Document a planned test. Appears in output but does not run or fail. */
-it.todo = (name: string): void => {
-  currentSuite.tests.push({
-    name,
-    fn: () => {
-      /* noop: todo */
-    },
-    skip: false,
-    todo: true,
-    only: false,
-    timeout: undefined,
-    retry: 0,
-  });
-  scheduleAutoRun();
-};
-
-/**
- * Create parameterised tests from an array of cases.
- *
- * Name templates support `%s`, `%d`, `%i`, `%f`, `%j`, `%o` (consumed in order),
- * `%#` (test index), and `$property` (object key interpolation).
- *
- * @example
- * ```ts
- * it.each([1, 2, 3])('doubles %d', (n) => {
- *   expect(n * 2).toBeGreaterThan(n)
- * })
- *
- * it.each([[1, 2, 3], [2, 3, 5]])('%d + %d = %d', (a, b, sum) => {
- *   expect(a + b).toBe(sum)
- * })
- *
- * it.each([{ a: 1, b: 2, sum: 3 }])('$a + $b = $sum', ({ a, b, sum }) => {
- *   expect(a + b).toBe(sum)
- * })
- * ```
- */
-it.each =
-  <T>(cases: ReadonlyArray<T>) =>
-  (name: string, fn: (...args: readonly unknown[]) => void | Promise<void>): void => {
-    for (let i = 0; i < cases.length; i++) {
-      const c = cases[i] as unknown;
-      const testName = formatEachName(name, c, i);
-      const testFn = Array.isArray(c) ? () => fn(...c) : () => fn(c);
-      it(testName, testFn);
-    }
-  };
-
-/** Skip a suite. */
-describe.skip = (name: string, _fn: () => void): void => {
-  const suite: Suite = {
-    name,
-    tests: [],
-    suites: [],
-    beforeAll: [],
-    afterAll: [],
-    beforeEach: [],
-    afterEach: [],
-    concurrent: false,
-    only: false,
-  };
-  currentSuite.suites.push(suite);
-  scheduleAutoRun();
-};
-
-/** Focus on a single suite. When any .only exists, all other tests are skipped. */
-describe.only = (name: string, fn: () => void): void => {
-  hasOnly = true;
-  const suite: Suite = {
-    name,
-    tests: [],
-    suites: [],
-    beforeAll: [],
-    afterAll: [],
-    beforeEach: [],
-    afterEach: [],
-    concurrent: false,
-    only: true,
-  };
-  currentSuite.suites.push(suite);
-  const parent = currentSuite;
-  currentSuite = suite;
-  fn();
-  currentSuite = parent;
-  scheduleAutoRun();
-};
-
-/**
- * Define a concurrent test suite. All tests in this suite run in parallel
- * via Promise.all. Use when tests are independent and don't share mutable state.
- *
- * @example
- * ```ts
- * describe.concurrent('crypto operations', () => {
- *   it('hash', async () => { ... })   // runs in parallel
- *   it('sign', async () => { ... })   // runs in parallel
- *   it('verify', async () => { ... }) // runs in parallel
- * })
- * ```
- */
-describe.concurrent = (name: string, fn: () => void): void => {
-  const suite: Suite = {
-    name,
-    tests: [],
-    suites: [],
-    beforeAll: [],
-    afterAll: [],
-    beforeEach: [],
-    afterEach: [],
-    concurrent: true,
-    only: false,
-  };
-  currentSuite.suites.push(suite);
-  const parent = currentSuite;
-  currentSuite = suite;
-  fn();
-  currentSuite = parent;
-  scheduleAutoRun();
-};
-
-/** Create parameterised suites from an array of cases. */
-describe.each =
-  <T>(cases: ReadonlyArray<T>) =>
-  (name: string, fn: (...args: readonly unknown[]) => void): void => {
-    for (let i = 0; i < cases.length; i++) {
-      const c = cases[i] as unknown;
-      const suiteName = formatEachName(name, c, i);
-      const suiteFn = Array.isArray(c) ? () => fn(...c) : () => fn(c);
-      describe(suiteName, suiteFn);
-    }
-  };
+/** Alias for test. */
+export const it: TestAPI = test;
 
 /** Register a before-all hook for the current suite. */
 export const beforeAll = (fn: () => void | Promise<void>): void => {
