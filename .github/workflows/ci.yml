@@ -273,7 +273,7 @@ jobs:
     steps:
       - uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411 # v2.19.4
         with:
-          egress-policy: audit
+          egress-policy: block
           allowed-endpoints: >
             api.github.com:443
             github.com:443
@@ -314,9 +314,13 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: "playwright-${{ runner.os }}-${{ hashFiles('package.json') }}"
+          restore-keys: |
+            playwright-${{ runner.os }}-
 
       - name: Install Playwright Chromium
         if: steps.playwright-cache.outputs.cache-hit != 'true'
+        env:
+          PLAYWRIGHT_DOWNLOAD_HOST: https://playwright.azureedge.net
         run: npx playwright install chromium --with-deps
 
       - name: Install Playwright deps only
