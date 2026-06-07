@@ -5,7 +5,7 @@
  * Verifies the library works without Node built-ins.
  *
  * Run locally:
- *   node tests/worker-test.mjs
+ *   node tests/workers/run.mjs
  *
  * Requires: npm install miniflare (dev dependency)
  */
@@ -14,7 +14,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const distDir = join(__dirname, "..", "dist");
+const distDir = join(__dirname, "../..", "dist");
 
 // Build worker script by bundling dist/ imports into a single module
 const workerScript = `

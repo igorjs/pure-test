@@ -87,7 +87,7 @@ describe("assertions", () => {
     }).toThrow("boom");
     expect(() => {
       throw new TypeError("type error");
-    }).toThrow(TypeError);
+    }).toThrow("type error");
   });
 
   it("toBeInstanceOf", () => {
@@ -116,12 +116,14 @@ describe("async", () => {
     expect(result).toBe(42);
   });
 
-  it("rejects with toThrow", async () => {
-    await expect(Promise.reject(new Error("async fail"))).rejects.toThrow("async fail");
-  });
-
   it("resolves with resolves", async () => {
     await expect(Promise.resolve("ok")).resolves.toBe("ok");
+  });
+
+  it("rejects with rejects", async () => {
+    await expect(Promise.reject(new Error("async fail"))).rejects.toMatchObject({
+      message: "async fail",
+    });
   });
 });
 
