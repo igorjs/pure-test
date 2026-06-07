@@ -132,7 +132,9 @@ type SuiteAPI = {
   skip: (name: string, fn: () => void) => void;
   only: (name: string, fn: () => void) => void;
   concurrent: (name: string, fn: () => void) => void;
-  each: <T>(cases: ReadonlyArray<T>) => (name: string, fn: (...args: readonly unknown[]) => void) => void;
+  each: <T>(
+    cases: ReadonlyArray<T>,
+  ) => (name: string, fn: (...args: readonly unknown[]) => void) => void;
 };
 
 type TestAPI = {
@@ -140,7 +142,9 @@ type TestAPI = {
   skip: (name: string, fn: () => void | Promise<void>) => void;
   only: (name: string, fn: () => void | Promise<void>, options?: number | TestOptions) => void;
   todo: (name: string) => void;
-  each: <T>(cases: ReadonlyArray<T>) => (name: string, fn: (...args: readonly unknown[]) => void | Promise<void>) => void;
+  each: <T>(
+    cases: ReadonlyArray<T>,
+  ) => (name: string, fn: (...args: readonly unknown[]) => void | Promise<void>) => void;
 };
 
 const makeSuite = (name: string, opts: { concurrent: boolean; only: boolean }): Suite => ({
@@ -223,14 +227,24 @@ const createTest = (): TestAPI => {
     options?: number | TestOptions,
   ): void => {
     const { timeout, retry } = parseTestOptions(options);
-    currentSuite.tests.push({ name, fn: testFn, skip: false, todo: false, only: false, timeout, retry });
+    currentSuite.tests.push({
+      name,
+      fn: testFn,
+      skip: false,
+      todo: false,
+      only: false,
+      timeout,
+      retry,
+    });
     scheduleAutoRun();
   };
 
   fn.skip = (name: string, _fn: () => void | Promise<void>): void => {
     currentSuite.tests.push({
       name,
-      fn: () => { /* noop: skipped */ },
+      fn: () => {
+        /* noop: skipped */
+      },
       skip: true,
       todo: false,
       only: false,
@@ -240,17 +254,31 @@ const createTest = (): TestAPI => {
     scheduleAutoRun();
   };
 
-  fn.only = (name: string, testFn: () => void | Promise<void>, options?: number | TestOptions): void => {
+  fn.only = (
+    name: string,
+    testFn: () => void | Promise<void>,
+    options?: number | TestOptions,
+  ): void => {
     hasOnly = true;
     const { timeout, retry } = parseTestOptions(options);
-    currentSuite.tests.push({ name, fn: testFn, skip: false, todo: false, only: true, timeout, retry });
+    currentSuite.tests.push({
+      name,
+      fn: testFn,
+      skip: false,
+      todo: false,
+      only: true,
+      timeout,
+      retry,
+    });
     scheduleAutoRun();
   };
 
   fn.todo = (name: string): void => {
     currentSuite.tests.push({
       name,
-      fn: () => { /* noop: todo */ },
+      fn: () => {
+        /* noop: todo */
+      },
       skip: false,
       todo: true,
       only: false,
