@@ -317,6 +317,13 @@ jobs:
           restore-keys: |
             playwright-${{ runner.os }}-
 
+      - name: Pre-resolve Playwright CDN
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: |
+          getent hosts playwright.azureedge.net || true
+          getent hosts playwright-akamai.azureedge.net || true
+          getent hosts cdn.playwright.dev || true
+
       - name: Install Playwright Chromium
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         env:
