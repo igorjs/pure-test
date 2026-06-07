@@ -308,30 +308,17 @@ jobs:
           name: dist
           path: dist/
 
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ~/.cache/ms-playwright
-          key: "playwright-${{ runner.os }}-${{ hashFiles('package.json') }}"
-          restore-keys: |
-            playwright-${{ runner.os }}-
-
-      - name: Pre-resolve Playwright CDN
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
+      - name: Locate or install Chrome
         run: |
-          getent hosts playwright.azureedge.net || true
-          getent hosts playwright-akamai.azureedge.net || true
-          getent hosts cdn.playwright.dev || true
+          CHROME=$(command -v google-chrome-stable || command -v google-chrome || command -v chromium-browser || echo "")
+          if [ -z "$CHROME" ]; then
+            wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+            sudo apt-get install -y ./google-chrome-stable_current_amd64.deb
+            CHROME=$(command -v google-chrome-stable)
+          fi
+          echo "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=$CHROME" >> "$GITHUB_ENV"
 
-      - name: Install Playwright Chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        env:
-          PLAYWRIGHT_DOWNLOAD_HOST: https://playwright.azureedge.net
-        run: npx playwright install chromium --with-deps
-
-      - name: Install Playwright deps only
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
+      - name: Install Playwright system deps
         run: npx playwright install-deps chromium
 
       - name: Browser smoke test (Chromium)

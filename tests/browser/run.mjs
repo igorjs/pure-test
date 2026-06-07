@@ -4,7 +4,7 @@
  * Serves dist/ over HTTP, loads tests in Chromium, checks results.
  *
  * Run locally:
- *   node tests/browser-test.mjs
+ *   node tests/browser/run.mjs
  *
  * Requires: npx playwright install chromium
  */
