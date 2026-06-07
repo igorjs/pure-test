@@ -129,7 +129,8 @@ await writeFile(htmlPath, testHtml);
 
 let exitCode = 0;
 try {
-  const browser = await chromium.launch();
+  const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+  const browser = await chromium.launch(executablePath ? { executablePath } : {});
   const page = await browser.newPage();
 
   page.on("pageerror", err => console.error("Page error:", err.message));
