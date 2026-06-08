@@ -36,7 +36,7 @@ try {
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = join(__dirname, "..");
+const root = join(__dirname, "../..");
 
 const MIME = {
   ".html": "text/html",
@@ -136,7 +136,7 @@ try {
   page.on("pageerror", err => console.error("Page error:", err.message));
 
   await page.goto(`http://localhost:${port}`);
-  await page.waitForFunction(() => window.__TEST_RESULT, { timeout: 15000 });
+  await page.waitForFunction(() => window.__TEST_RESULT, undefined, { timeout: 15000 });
 
   const result = await page.evaluate(() => window.__TEST_RESULT);
   await browser.close();
