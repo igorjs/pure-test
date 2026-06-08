@@ -50,8 +50,8 @@ export {
   beforeEach,
   clearRegistered,
   describe,
-  isBailed,
   it,
+  isBailed,
   printSummary,
   reset,
   run,
@@ -66,6 +66,7 @@ export {
   setGrep,
   setReporter,
   setRunInBand,
+  suite,
   test,
 } from "./runner.js";
 export type { FakeableAPI, FakeTimerConfig } from "./timers.js";

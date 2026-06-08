@@ -290,8 +290,11 @@ jobs:
             ghcr.io:443
             pkg-containers.githubusercontent.com:443
             archive.ubuntu.com:80
+            azure.archive.ubuntu.com:80
             security.ubuntu.com:80
             esm.ubuntu.com:443
+            packages.microsoft.com:443
+            dl.google.com:443
 
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
       - run: corepack enable
@@ -305,19 +308,17 @@ jobs:
           name: dist
           path: dist/
 
-      - name: Cache Playwright browsers
-        id: playwright-cache
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ~/.cache/ms-playwright
-          key: "playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}"
+      - name: Locate or install Chrome
+        run: |
+          CHROME=$(command -v google-chrome-stable || command -v google-chrome || command -v chromium-browser || echo "")
+          if [ -z "$CHROME" ]; then
+            wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+            sudo apt-get install -y ./google-chrome-stable_current_amd64.deb
+            CHROME=$(command -v google-chrome-stable)
+          fi
+          echo "PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=$CHROME" >> "$GITHUB_ENV"
 
-      - name: Install Playwright Chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: npx playwright install chromium --with-deps
-
-      - name: Install Playwright deps only
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
+      - name: Install Playwright system deps
         run: npx playwright install-deps chromium
 
       - name: Browser smoke test (Chromium)

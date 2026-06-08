@@ -4,7 +4,7 @@
  * Serves dist/ over HTTP, loads tests in Chromium, checks results.
  *
  * Run locally:
- *   node tests/browser-test.mjs
+ *   node tests/browser/run.mjs
  *
  * Requires: npx playwright install chromium
  */
@@ -36,7 +36,7 @@ try {
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = join(__dirname, "..");
+const root = join(__dirname, "../..");
 
 const MIME = {
   ".html": "text/html",
@@ -129,13 +129,14 @@ await writeFile(htmlPath, testHtml);
 
 let exitCode = 0;
 try {
-  const browser = await chromium.launch();
+  const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+  const browser = await chromium.launch(executablePath ? { executablePath } : {});
   const page = await browser.newPage();
 
   page.on("pageerror", err => console.error("Page error:", err.message));
 
   await page.goto(`http://localhost:${port}`);
-  await page.waitForFunction(() => window.__TEST_RESULT, { timeout: 15000 });
+  await page.waitForFunction(() => window.__TEST_RESULT, undefined, { timeout: 15000 });
 
   const result = await page.evaluate(() => window.__TEST_RESULT);
   await browser.close();

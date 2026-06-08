@@ -82,5 +82,10 @@
     "typescript": {
       "optional": true
     }
+  },
+  "pnpm": {
+    "overrides": {
+      "brace-expansion": "5.0.6"
+    }
   }
 }

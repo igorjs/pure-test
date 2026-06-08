@@ -150,12 +150,13 @@ Pin the invocation in `package.json` scripts so the call site stays short:
 ### Test Registration
 
 ```ts
-describe(name, fn)              // define a suite (nestable)
-describe.concurrent(name, fn)   // suite with parallel test execution
-describe.skip(name, fn)         // skip a suite
-describe.only(name, fn)         // focus: only run this suite
-it(name, fn, options?)          // define a test (sync or async)
-test(name, fn, options?)        // alias for it
+suite(name, fn)                 // define a suite (nestable)
+describe(name, fn)              // alias for suite
+suite.concurrent(name, fn)      // suite with parallel test execution
+suite.skip(name, fn)            // skip a suite
+suite.only(name, fn)            // focus: only run this suite
+test(name, fn, options?)        // define a test (sync or async)
+it(name, fn, options?)          // alias for test
 it.skip(name, fn)               // skip a test
 it.only(name, fn)               // focus: only run this test
 it.todo(name)                   // placeholder for a planned test
