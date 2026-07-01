@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Copyright 2026 igorjs. SPDX-License-Identifier: Apache-2.0
 
 /**
  * pure-test CLI - discovers and runs test files.

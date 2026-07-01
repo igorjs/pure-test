@@ -1,3 +1,5 @@
+// Copyright 2026 igorjs. SPDX-License-Identifier: Apache-2.0
+
 /**
  * Cloudflare Workers smoke test via Miniflare API.
  *
