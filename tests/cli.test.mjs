@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: Apache-2.0
 /**
  * CLI integration tests: spawn bin/pure-test.mjs and assert on exit codes / output.
  *
